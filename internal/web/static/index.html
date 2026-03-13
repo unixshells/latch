@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>latch</title>
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; background: #1a1a2e; overflow: hidden; }
+  #terminal { width: 100%; height: 100%; }
+  .status { position: fixed; top: 8px; right: 12px; color: #555; font-size: 12px; font-family: monospace; z-index: 10; }
+  .status.connected { color: #4a9; }
+  .status.disconnected { color: #a44; }
+  #drop-overlay {
+    display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(26,26,46,0.85); z-index: 20;
+    justify-content: center; align-items: center;
+    color: #4a9; font-size: 24px; font-family: monospace;
+  }
+  #drop-overlay.active { display: flex; }
+  #auth-overlay {
+    display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: #1a1a2e; z-index: 30;
+    justify-content: center; align-items: center;
+    font-family: monospace;
+  }
+  #auth-overlay.active { display: flex; }
+  #auth-box { text-align: center; color: #e0e0e0; max-width: 600px; }
+  #auth-box h1 { color: #4a9; font-size: 24px; margin-bottom: 8px; font-weight: normal; }
+  #auth-box .subtitle { color: #666; font-size: 13px; margin-bottom: 24px; }
+  #auth-box .pubkey-label { color: #888; font-size: 12px; margin-bottom: 6px; text-align: left; }
+  #auth-box .pubkey-wrap {
+    background: #0d0d1a; border: 1px solid #333; border-radius: 4px;
+    padding: 12px; text-align: left; position: relative; margin-bottom: 16px;
+  }
+  #auth-box .pubkey {
+    color: #4a9; font-size: 11px; word-break: break-all; line-height: 1.5;
+    user-select: all; -webkit-user-select: all;
+  }
+  #auth-box .copy-btn {
+    position: absolute; top: 8px; right: 8px;
+    background: #2a2a4e; border: 1px solid #444; color: #aaa;
+    padding: 4px 10px; font-size: 11px; font-family: monospace;
+    cursor: pointer; border-radius: 3px;
+  }
+  #auth-box .copy-btn:hover { background: #3a3a5e; color: #fff; }
+  #auth-box .instructions { color: #888; font-size: 12px; line-height: 1.6; text-align: left; margin-bottom: 20px; }
+  #auth-box .instructions code {
+    background: #0d0d1a; padding: 2px 6px; border-radius: 3px; color: #e0e0e0;
+  }
+  #auth-box .error { color: #a44; margin-top: 12px; font-size: 13px; }
+  #auth-box .retry-btn {
+    background: #2a2a4e; border: 1px solid #4a9; color: #4a9;
+    padding: 8px 24px; font-size: 14px; font-family: monospace;
+    cursor: pointer; border-radius: 4px; margin-top: 12px;
+  }
+  #auth-box .retry-btn:hover { background: #3a3a5e; }
+</style>
+<link rel="stylesheet" href="vendor/xterm.css">
+</head>
+<body>
+<div id="status" class="status disconnected">disconnected</div>
+<div id="drop-overlay">drop file to paste contents</div>
+<div id="auth-overlay"><div id="auth-box">
+  <h1>latch</h1>
+  <div class="subtitle">add your public key to connect</div>
+  <div class="pubkey-label">your public key:</div>
+  <div class="pubkey-wrap">
+    <div id="pubkey" class="pubkey">generating...</div>
+    <button id="copy-btn" class="copy-btn">copy</button>
+  </div>
+  <div class="instructions">
+    append to <code>~/.latch/authorized_keys</code> on the server:<br>
+    <code>echo 'KEY' >> ~/.latch/authorized_keys</code>
+  </div>
+  <div id="auth-error" class="error"></div>
+  <button id="retry-btn" class="retry-btn" style="display:none">retry</button>
+  <button id="regen-btn" class="retry-btn" style="display:none;margin-left:8px">regenerate key</button>
+</div></div>
+<div id="terminal"></div>
+<script src="vendor/xterm.js"></script>
+<script src="vendor/addon-fit.js"></script>
+<script src="vendor/addon-web-links.js"></script>
+<script>
+(function() {
+  var term = new Terminal({
+    cursorBlink: true,
+    fontSize: 14,
+    fontFamily: 'Menlo, Monaco, Consolas, monospace',
+    theme: {
+      background: '#1a1a2e',
+      foreground: '#e0e0e0',
+      cursor: '#4a9',
+    }
+  });
+
+  var fitAddon = new FitAddon.FitAddon();
+  term.loadAddon(fitAddon);
+  term.loadAddon(new WebLinksAddon.WebLinksAddon());
+  term.open(document.getElementById('terminal'));
+
+  function doFit() {
+    try { fitAddon.fit(); } catch(e) {}
+  }
+  doFit();
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(doFit);
+  }
+
+  // Handle OSC 52 clipboard sequences from server.
+  term.parser.registerOscHandler(52, function(data) {
+    var parts = data.split(';');
+    if (parts.length >= 2) {
+      var b64 = parts.slice(1).join(';');
+      if (b64 && b64 !== '?') {
+        try {
+          var text = atob(b64);
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text);
+          }
+        } catch(e) {}
+      }
+    }
+    return true;
+  });
+
+  var status = document.getElementById('status');
+  var authOverlay = document.getElementById('auth-overlay');
+  var authError = document.getElementById('auth-error');
+  var pubkeyEl = document.getElementById('pubkey');
+  var copyBtn = document.getElementById('copy-btn');
+  var retryBtn = document.getElementById('retry-btn');
+  var ws = null;
+  var session = new URLSearchParams(window.location.search).get('session') || 'default';
+  var authed = false;
+
+  // --- Ed25519 key management ---
+  // Private key stored as non-extractable CryptoKey in IndexedDB.
+  // Only the public key (needed for display) is extractable.
+  // This prevents JavaScript (XSS, extensions) from reading the private key.
+
+  var DB_NAME = 'latch-keys';
+  var STORE_NAME = 'keys';
+  var keyPair = null;
+  var pubKeySSH = null; // OpenSSH wire format bytes
+
+  function b64encode(buf) {
+    var bytes = new Uint8Array(buf);
+    var s = '';
+    for (var i = 0; i < bytes.length; i++) {
+      s += String.fromCharCode(bytes[i]);
+    }
+    return btoa(s);
+  }
+
+  // Build OpenSSH wire format for ssh-ed25519 public key.
+  // Format: [4-byte len]["ssh-ed25519"][4-byte len][32-byte key]
+  function buildSSHPubKey(rawPub) {
+    var keyType = new TextEncoder().encode('ssh-ed25519');
+    var buf = new Uint8Array(4 + keyType.length + 4 + rawPub.length);
+    var view = new DataView(buf.buffer);
+    var off = 0;
+    view.setUint32(off, keyType.length, false); off += 4;
+    buf.set(keyType, off); off += keyType.length;
+    view.setUint32(off, rawPub.length, false); off += 4;
+    buf.set(rawPub, off);
+    return buf;
+  }
+
+  // Format as "ssh-ed25519 <base64> latch-web"
+  function formatSSHPubKey(wireBytes) {
+    return 'ssh-ed25519 ' + b64encode(wireBytes) + ' latch-web';
+  }
+
+  function openDB() {
+    return new Promise(function(resolve, reject) {
+      var req = indexedDB.open(DB_NAME, 1);
+      req.onupgradeneeded = function() {
+        req.result.createObjectStore(STORE_NAME);
+      };
+      req.onsuccess = function() { resolve(req.result); };
+      req.onerror = function() { reject(req.error); };
+    });
+  }
+
+  function dbGet(db, key) {
+    return new Promise(function(resolve, reject) {
+      var tx = db.transaction(STORE_NAME, 'readonly');
+      var req = tx.objectStore(STORE_NAME).get(key);
+      req.onsuccess = function() { resolve(req.result); };
+      req.onerror = function() { reject(req.error); };
+    });
+  }
+
+  function dbPut(db, key, value) {
+    return new Promise(function(resolve, reject) {
+      var tx = db.transaction(STORE_NAME, 'readwrite');
+      var req = tx.objectStore(STORE_NAME).put(value, key);
+      req.onsuccess = function() { resolve(); };
+      req.onerror = function() { reject(req.error); };
+    });
+  }
+
+  async function loadOrGenerateKey() {
+    // Migrate from old localStorage keys (delete them).
+    localStorage.removeItem('latch-ed25519-priv');
+    localStorage.removeItem('latch-ed25519-pub');
+
+    var db = await openDB();
+
+    // Try loading existing key from IndexedDB.
+    var stored = await dbGet(db, 'keypair');
+    if (stored) {
+      try {
+        // Private key is a non-extractable CryptoKey stored directly.
+        keyPair = { privateKey: stored.privateKey, publicKey: stored.publicKey };
+        pubKeySSH = buildSSHPubKey(new Uint8Array(stored.pubRaw));
+        return;
+      } catch(e) {
+        // Stored key invalid, regenerate.
+      }
+    }
+
+    // Generate new key. Private key is non-extractable from the start.
+    keyPair = await crypto.subtle.generateKey(
+      { name: 'Ed25519' }, false, ['sign', 'verify']
+    );
+
+    // Export public key only (for display and wire format).
+    // We need a separate extractable public key for this.
+    var pubExport = await crypto.subtle.exportKey('raw', keyPair.publicKey);
+    pubKeySSH = buildSSHPubKey(new Uint8Array(pubExport));
+
+    // Store CryptoKey objects directly in IndexedDB (structured clone).
+    // The private key remains non-extractable — JS cannot read its bytes.
+    await dbPut(db, 'keypair', {
+      privateKey: keyPair.privateKey,
+      publicKey: keyPair.publicKey,
+      pubRaw: pubExport,
+    });
+  }
+
+  // Sign challenge with Ed25519 private key (non-extractable).
+  // Domain separator prevents cross-protocol signature reuse.
+  async function signChallenge(challenge) {
+    var prefix = new TextEncoder().encode('latch-web-auth-v1:');
+    var signData = new Uint8Array(prefix.length + challenge.byteLength);
+    signData.set(prefix);
+    signData.set(new Uint8Array(challenge), prefix.length);
+    var sig = await crypto.subtle.sign('Ed25519', keyPair.privateKey, signData);
+    return new Uint8Array(sig);
+  }
+
+  // --- Auth + connect ---
+
+  function showAuthUI() {
+    var keyStr = formatSSHPubKey(pubKeySSH);
+    pubkeyEl.textContent = keyStr;
+    authOverlay.style.display = 'flex';
+    regenBtn.style.display = 'inline-block';
+
+    // Update the echo command in instructions.
+    var instructions = document.querySelector('#auth-box .instructions');
+    while (instructions.firstChild) instructions.removeChild(instructions.firstChild);
+    var t1 = document.createTextNode('append to ');
+    var c1 = document.createElement('code');
+    c1.textContent = '~/.latch/authorized_keys';
+    var t2 = document.createTextNode(' on the server:');
+    var br = document.createElement('br');
+    var c2 = document.createElement('code');
+    c2.style.fontSize = '10px';
+    c2.style.wordBreak = 'break-all';
+    c2.textContent = "echo '" + keyStr + "' >> ~/.latch/authorized_keys";
+    instructions.appendChild(t1);
+    instructions.appendChild(c1);
+    instructions.appendChild(t2);
+    instructions.appendChild(br);
+    instructions.appendChild(c2);
+  }
+
+  copyBtn.addEventListener('click', function() {
+    var keyStr = formatSSHPubKey(pubKeySSH);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(keyStr).then(function() {
+        copyBtn.textContent = 'copied';
+        setTimeout(function() { copyBtn.textContent = 'copy'; }, 2000);
+      });
+    }
+  });
+
+  var regenBtn = document.getElementById('regen-btn');
+
+  retryBtn.addEventListener('click', function() {
+    authError.textContent = '';
+    retryBtn.style.display = 'none';
+    connect();
+  });
+
+  regenBtn.addEventListener('click', async function() {
+    // Delete old key and generate a new one.
+    var db = await openDB();
+    var tx = db.transaction(STORE_NAME, 'readwrite');
+    tx.objectStore(STORE_NAME).delete('keypair');
+    await new Promise(function(resolve) { tx.oncomplete = resolve; });
+    await loadOrGenerateKey();
+    showAuthUI();
+    authError.textContent = 'new key generated — add it to authorized_keys';
+  });
+
+  function connect() {
+    var url = 'wss://' + location.host + '/ws?session=' + encodeURIComponent(session);
+    ws = new WebSocket(url);
+    ws.binaryType = 'arraybuffer';
+    authed = false;
+
+    ws.onopen = function() {
+      // Wait for server auth message.
+    };
+
+    ws.onmessage = function(e) {
+      if (!(e.data instanceof ArrayBuffer)) {
+        return;
+      }
+      var data = new Uint8Array(e.data);
+
+      if (!authed) {
+        handleAuth(data);
+        return;
+      }
+
+      term.write(data);
+    };
+
+    ws.onclose = function() {
+      status.textContent = 'disconnected';
+      status.className = 'status disconnected';
+      if (authed) {
+        setTimeout(connect, 2000);
+      }
+    };
+
+    ws.onerror = function() {
+      ws.close();
+    };
+  }
+
+  async function handleAuth(data) {
+    if (data.length === 1 && data[0] === 0x00) {
+      // Auth OK (no authorized_keys file, open access).
+      authComplete();
+      return;
+    }
+
+    if (data.length === 33 && data[0] === 0x01) {
+      // Challenge: sign and respond.
+      var challenge = data.slice(1);
+      try {
+        var sig = await signChallenge(challenge);
+        // Response: [pubkey-len:4][pubkey][sig-len:4][sig]
+        var pkBytes = pubKeySSH;
+        var resp = new Uint8Array(4 + pkBytes.length + 4 + sig.length);
+        var view = new DataView(resp.buffer);
+        view.setUint32(0, pkBytes.length, false);
+        resp.set(pkBytes, 4);
+        view.setUint32(4 + pkBytes.length, sig.length, false);
+        resp.set(sig, 4 + pkBytes.length + 4);
+        ws.send(resp.buffer);
+      } catch(err) {
+        authError.textContent = 'signing failed: ' + err.message;
+        showAuthUI();
+        retryBtn.style.display = 'inline-block';
+      }
+      return;
+    }
+
+    if (data.length === 1 && data[0] === 0x02) {
+      // Auth failed — key not in authorized_keys.
+      authError.textContent = 'key not authorized';
+      showAuthUI();
+      retryBtn.style.display = 'inline-block';
+      return;
+    }
+
+    if (data.length === 1 && data[0] === 0x03) {
+      // No authorized_keys file on server — show setup UI.
+      authError.textContent = 'no authorized_keys file — add your key to connect';
+      showAuthUI();
+      retryBtn.style.display = 'inline-block';
+      return;
+    }
+  }
+
+  function authComplete() {
+    authed = true;
+    authOverlay.style.display = 'none';
+    status.textContent = 'connected';
+    status.className = 'status connected';
+    doFit();
+    sendResize(term.cols, term.rows);
+    term.focus();
+  }
+
+  // Binary message helpers
+  function sendResize(cols, rows) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    var buf = new ArrayBuffer(5);
+    var view = new DataView(buf);
+    view.setUint8(0, 0x05);
+    view.setUint16(1, cols, false);
+    view.setUint16(3, rows, false);
+    ws.send(buf);
+  }
+
+  function sendPaste(data) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    var payload;
+    if (typeof data === 'string') {
+      payload = new TextEncoder().encode(data);
+    } else {
+      payload = new Uint8Array(data);
+    }
+    var buf = new Uint8Array(1 + payload.length);
+    buf[0] = 0x13;
+    buf.set(payload, 1);
+    ws.send(buf.buffer);
+  }
+
+  term.onData(function(data) {
+    if (ws && ws.readyState === WebSocket.OPEN && authed) {
+      ws.send(data);
+    }
+  });
+
+  term.onResize(function(size) {
+    sendResize(size.cols, size.rows);
+  });
+
+  window.addEventListener('resize', function() {
+    doFit();
+  });
+
+  // Paste handling: intercept paste events for images/files
+  document.addEventListener('paste', function(e) {
+    if (!ws || ws.readyState !== WebSocket.OPEN || !authed) return;
+    var items = e.clipboardData && e.clipboardData.items;
+    if (!items) return;
+
+    for (var i = 0; i < items.length; i++) {
+      var item = items[i];
+      if (item.type.indexOf('image/') === 0) {
+        e.preventDefault();
+        var blob = item.getAsFile();
+        if (!blob) continue;
+        var reader = new FileReader();
+        reader.onload = function() {
+          var bytes = new Uint8Array(reader.result);
+          var b64 = '';
+          for (var j = 0; j < bytes.length; j += 8192) {
+            b64 += String.fromCharCode.apply(null, bytes.subarray(j, j + 8192));
+          }
+          b64 = btoa(b64);
+          var seq = '\x1b]1337;File=inline=1:' + b64 + '\x07';
+          sendPaste(seq);
+        };
+        reader.readAsArrayBuffer(blob);
+        return;
+      }
+    }
+  });
+
+  // File drag and drop
+  var dropOverlay = document.getElementById('drop-overlay');
+  var dragCounter = 0;
+
+  document.addEventListener('dragenter', function(e) {
+    e.preventDefault();
+    dragCounter++;
+    dropOverlay.className = 'active';
+    dropOverlay.style.display = 'flex';
+  });
+
+  document.addEventListener('dragleave', function(e) {
+    dragCounter--;
+    if (dragCounter <= 0) {
+      dragCounter = 0;
+      dropOverlay.style.display = 'none';
+    }
+  });
+
+  document.addEventListener('dragover', function(e) {
+    e.preventDefault();
+  });
+
+  document.addEventListener('drop', function(e) {
+    e.preventDefault();
+    dragCounter = 0;
+    dropOverlay.style.display = 'none';
+
+    var files = e.dataTransfer && e.dataTransfer.files;
+    if (!files || files.length === 0) return;
+
+    for (var i = 0; i < files.length; i++) {
+      (function(file) {
+        if (file.type.indexOf('image/') === 0) {
+          var reader = new FileReader();
+          reader.onload = function() {
+            var bytes = new Uint8Array(reader.result);
+            var b64 = '';
+            for (var j = 0; j < bytes.length; j += 8192) {
+              b64 += String.fromCharCode.apply(null, bytes.subarray(j, j + 8192));
+            }
+            b64 = btoa(b64);
+            var seq = '\x1b]1337;File=inline=1;size=' + file.size + ':' + b64 + '\x07';
+            sendPaste(seq);
+          };
+          reader.readAsArrayBuffer(file);
+        } else {
+          var reader = new FileReader();
+          reader.onload = function() {
+            sendPaste(reader.result);
+          };
+          reader.readAsText(file);
+        }
+      })(files[i]);
+    }
+  });
+
+  // Init: generate key, then connect.
+  loadOrGenerateKey().then(function() {
+    connect();
+  }).catch(function(err) {
+    pubkeyEl.textContent = 'Ed25519 not supported in this browser';
+    authError.textContent = err.message;
+    authOverlay.style.display = 'flex';
+  });
+})();
+</script>
+</body>
+</html>

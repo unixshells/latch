@@ -1,0 +1,90 @@
+.TH LATCH.CONF 5 "2026-03-09" "latch" "File Formats"
+.SH NAME
+latch.conf \- configuration file for latch terminal multiplexer
+.SH SYNOPSIS
+.I ~/.latch/config
+.SH DESCRIPTION
+The latch configuration file uses a simple
+.B key = value
+format, one setting per line.
+Lines starting with
+.B #
+are comments. Blank lines are ignored.
+.PP
+If the file does not exist, default values are used.
+.SH OPTIONS
+.TP
+.B prefix = C-]
+Prefix key for key bindings. Format:
+.B C-x
+where
+.I x
+is a letter (a-z) or bracket character ([ ] \\),
+or a hex byte like
+.BR 0x1d .
+Default:
+.B C-]
+(Ctrl-]).
+.TP
+.B shell = /bin/zsh
+Shell to spawn in new windows. Default: \fB$SHELL\fR or \fB/bin/sh\fR.
+.TP
+.B scrollback = 10000
+Number of scrollback lines in the VT emulator. Default: \fB10000\fR.
+.TP
+.B max-sessions = 64
+Maximum number of concurrent sessions. Default: \fB64\fR.
+.TP
+.B mouse = true
+Enable mouse passthrough to applications.
+Values: \fBtrue\fR, \fBfalse\fR, \fByes\fR, \fBno\fR, \fBon\fR, \fBoff\fR, \fB1\fR, \fB0\fR.
+Default: \fBtrue\fR.
+.TP
+.B render-coalesce-ms = 2
+Render coalesce delay in milliseconds. Lower values give more responsive
+updates but higher CPU usage. Default: \fB2\fR.
+.TP
+.B ssh-addr = :2222
+Default SSH listen address for \fBlatch new \-\-ssh\fR. Default: \fB:2222\fR.
+.TP
+.B web-addr = :7680
+Default web listen address for \fBlatch new \-\-web\fR. Default: \fB:7680\fR.
+.SS Relay Settings
+.TP
+.B relay-host = unixshells.com
+Relay server hostname. Default: \fBunixshells.com\fR.
+.TP
+.B relay-user = rasengan
+Username registered with the relay service.
+.TP
+.B relay-device = macbook
+Device name. Defaults to the OS hostname during signup.
+.TP
+.B relay-enabled = true
+Enable or disable the relay connection.
+Values: \fBtrue\fR, \fBfalse\fR, \fByes\fR, \fBno\fR, \fBon\fR, \fBoff\fR, \fB1\fR, \fB0\fR.
+Default: \fBfalse\fR.
+.TP
+.B relay-ca = /etc/latch/relay-ca.pem
+CA certificate file for relay TLS verification.
+If unset, the system root CA pool is used.
+.SH EXAMPLE
+.nf
+# ~/.latch/config
+prefix = C-b
+shell = /bin/zsh
+scrollback = 50000
+max-sessions = 32
+mouse = true
+render-coalesce-ms = 1
+ssh-addr = :2222
+web-addr = :8080
+
+# Relay
+relay-host = unixshells.com
+relay-user = rasengan
+relay-device = macbook
+relay-enabled = true
+.fi
+.SH SEE ALSO
+.BR latch (1)
