@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -77,6 +78,57 @@ func (s *Server) makeSSHConfig() (*ssh.ServerConfig, error) {
 	}
 	config.PublicKeyCallback = makePublicKeyCallback(authKeys)
 	return config, nil
+}
+
+// RequestUDPBridge asks the relay to bridge a public UDP port to a local mosh port.
+// Returns the relay's public port, public address, and the QUIC stream (kept open for the bridge lifetime).
+func (s *Server) RequestUDPBridge(targetPort uint16) (relayPort int, relayAddr string, stream *quic.Stream, err error) {
+	if s.relayCon == nil {
+		return 0, "", nil, fmt.Errorf("no relay connection")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	stream, err = s.relayCon.OpenStream(ctx)
+	if err != nil {
+		return 0, "", nil, fmt.Errorf("open stream: %w", err)
+	}
+
+	// Write request: [0x03][targetPort:2]
+	var req [3]byte
+	req[0] = 0x03
+	binary.BigEndian.PutUint16(req[1:3], targetPort)
+	if _, err := stream.Write(req[:]); err != nil {
+		stream.Close()
+		return 0, "", nil, fmt.Errorf("write request: %w", err)
+	}
+
+	// Read response: [status:1][relayPort:2][addrLen:2][relayAddr]
+	var resp [5]byte
+	if _, err := io.ReadFull(stream, resp[:]); err != nil {
+		stream.Close()
+		return 0, "", nil, fmt.Errorf("read response: %w", err)
+	}
+	if resp[0] != 0x01 {
+		stream.Close()
+		return 0, "", nil, fmt.Errorf("bridge request rejected")
+	}
+
+	relayPort = int(binary.BigEndian.Uint16(resp[1:3]))
+	addrLen := binary.BigEndian.Uint16(resp[3:5])
+	if addrLen > 512 {
+		stream.Close()
+		return 0, "", nil, fmt.Errorf("address too large")
+	}
+	addrBuf := make([]byte, addrLen)
+	if _, err := io.ReadFull(stream, addrBuf); err != nil {
+		stream.Close()
+		return 0, "", nil, fmt.Errorf("read address: %w", err)
+	}
+	relayAddr = string(addrBuf)
+
+	return relayPort, relayAddr, stream, nil
 }
 
 // handleRelayStream runs the SSH server handshake on a relay stream.

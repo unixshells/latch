@@ -3,6 +3,7 @@ package relay
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"io"
 	"sync"
 	"time"
@@ -108,6 +109,18 @@ func (p *PersistentConn) run() {
 		p.conn = nil
 		p.mu.Unlock()
 	}
+}
+
+// OpenStream opens a device-initiated QUIC stream on the current connection.
+// Returns an error if not currently connected.
+func (p *PersistentConn) OpenStream(ctx context.Context) (*quic.Stream, error) {
+	p.mu.Lock()
+	c := p.conn
+	p.mu.Unlock()
+	if c == nil {
+		return nil, fmt.Errorf("not connected to relay")
+	}
+	return c.OpenStream(ctx)
 }
 
 func (p *PersistentConn) acceptLoop(conn *Conn) {

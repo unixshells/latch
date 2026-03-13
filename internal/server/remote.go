@@ -480,6 +480,9 @@ func (p *pipeRW) Close() error {
 // handleMoshExec handles mosh-server exec requests from SSH clients.
 // It bridges the mosh server to a latch session so mosh clients get
 // the same multiplexed experience as SSH and WebSocket clients.
+//
+// When connected to a relay, it requests a UDP bridge so the standard
+// mosh client can connect through the relay's public UDP port.
 func (s *Server) handleMoshExec(ch ssh.Channel, cmd string, remoteAddr net.Addr, perms *ssh.Permissions) {
 	defer ch.Close()
 
@@ -492,8 +495,25 @@ func (s *Server) handleMoshExec(ch ssh.Channel, cmd string, remoteAddr net.Addr,
 		return
 	}
 
-	// Write CONNECT line and close SSH channel — mosh switches to UDP.
-	srv.WriteTo(ch)
+	// If relay is active, request a UDP bridge so the mosh client
+	// connects to the relay's public port instead of the local one.
+	var bridgeStream interface{ Close() error }
+	if s.relayCon != nil {
+		relayPort, _, stream, err := s.RequestUDPBridge(uint16(srv.Port()))
+		if err == nil {
+			bridgeStream = stream
+			// Rewrite the MOSH CONNECT line to use the relay's port.
+			// The mosh client will connect UDP to the relay, which bridges to us.
+			fmt.Fprintf(ch, "MOSH CONNECT %d %s\n", relayPort, srv.KeyBase64())
+		} else {
+			// Bridge failed — fall back to original CONNECT line.
+			fmt.Fprintf(ch.Stderr(), "relay bridge: %v (falling back to direct)\r\n", err)
+			srv.WriteTo(ch)
+		}
+	} else {
+		srv.WriteTo(ch)
+	}
+
 	ch.SendRequest("exit-status", false, ssh.Marshal(struct{ Status uint32 }{0}))
 	ch.Close()
 
@@ -536,6 +556,12 @@ func (s *Server) handleMoshExec(ch ssh.Channel, cmd string, remoteAddr net.Addr,
 	}
 	s.setConnMeta(bridge, info)
 	s.handle(bridge)
+
+	// Close the relay bridge stream after the mosh session ends.
+	// This triggers teardown of the relay's UDP port binding.
+	if bridgeStream != nil {
+		bridgeStream.Close()
+	}
 }
 
 // parseMoshPorts extracts -p PORT[:PORT2] from a mosh-server command.

@@ -152,6 +152,11 @@ func (c *Conn) RemoteAddr() net.Addr {
 	return c.qconn.RemoteAddr()
 }
 
+// OpenStream opens a new device-initiated QUIC stream to the relay.
+func (c *Conn) OpenStream(ctx context.Context) (*quic.Stream, error) {
+	return c.qconn.OpenStreamSync(ctx)
+}
+
 // Close closes the QUIC connection.
 func (c *Conn) Close() error {
 	return c.qconn.CloseWithError(0, "")
