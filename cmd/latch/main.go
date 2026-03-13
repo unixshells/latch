@@ -119,6 +119,33 @@ func main() {
 			fatal("%v", err)
 		}
 
+	case "auth":
+		if len(os.Args) < 3 {
+			authUsage()
+		}
+		switch os.Args[2] {
+		case "add":
+			if len(os.Args) < 4 {
+				fatal("usage: latch auth add <key-or-file>")
+			}
+			if err := client.AuthAdd(os.Args[3]); err != nil {
+				fatal("%v", err)
+			}
+		case "list", "ls":
+			if err := client.AuthList(); err != nil {
+				fatal("%v", err)
+			}
+		case "remove", "rm":
+			if len(os.Args) < 4 {
+				fatal("usage: latch auth remove <fingerprint-or-comment>")
+			}
+			if err := client.AuthRemove(os.Args[3]); err != nil {
+				fatal("%v", err)
+			}
+		default:
+			authUsage()
+		}
+
 	case "relay":
 		if len(os.Args) < 3 {
 			relayUsage()
@@ -200,6 +227,7 @@ commands:
   attach [name]            attach to an existing session
   ls                       list sessions
   kill <name>              kill a session
+  auth <cmd>              manage authorized SSH keys
   relay <cmd>              relay account management
   --version                print version
 
@@ -216,6 +244,18 @@ remote access:
   mosh user@host --ssh="ssh -p 2222" connect via mosh
 
 config: ~/.latch/config (see latch.conf(5))
+
+`, os.Args[0])
+	os.Exit(1)
+}
+
+func authUsage() {
+	fmt.Fprintf(os.Stderr, `usage: %s auth <command>
+
+commands:
+  add <key-or-file>   add a public key (inline string or path to .pub file)
+  list                list authorized keys
+  remove <match>      remove a key by fingerprint or comment
 
 `, os.Args[0])
 	os.Exit(1)
