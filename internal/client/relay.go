@@ -531,18 +531,26 @@ func RelaySSHConfig(configPath string) error {
 		jump = "relay.unixshells.com"
 	}
 
-	dest := user + "." + jump
+	// The HostName must match what parseDestination expects: device.user.unixshells.com.
+	// The Host line is just a convenient alias.
+	hostname := user + ".unixshells.com"
+	alias := user
 	if device != "" {
-		dest = device + "." + user + "." + jump
+		hostname = device + "." + user + ".unixshells.com"
+		alias = device
 	}
 
 	fmt.Printf("# Add to ~/.ssh/config\n")
-	fmt.Printf("Host %s\n", dest)
+	fmt.Printf("Host %s\n", alias)
+	fmt.Printf("    HostName %s\n", hostname)
 	fmt.Printf("    ProxyJump %s\n", jump)
 	fmt.Printf("    User latch\n")
 	fmt.Println()
 	fmt.Printf("# Then connect with:\n")
-	fmt.Printf("#   ssh %s\n", dest)
+	fmt.Printf("#   ssh %s\n", alias)
+	fmt.Println()
+	fmt.Printf("# Or without config:\n")
+	fmt.Printf("#   ssh -J %s latch@%s\n", jump, hostname)
 	return nil
 }
 
