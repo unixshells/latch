@@ -78,10 +78,13 @@ latch relay register                   # create account
 latch relay enable                     # enable in config
 latch new --ssh
 ssh macbook                            # from anywhere (with ssh config)
+mosh --ssh="ssh -J relay.unixshells.com" macbook.alice.unixshells.com
 ```
 
 Persistent QUIC connection to the relay. No public IP, port
-forwarding, or VPN needed.
+forwarding, or VPN needed. Mosh works through the relay too -- latch
+automatically bridges UDP through a QUIC tunnel so standard `mosh`
+clients connect without any extra setup.
 
 ## Admin panel
 
@@ -115,10 +118,14 @@ ssh     ──tcp───> server
 mosh    ──udp───> server
 browser ──wss───> server
 relay   ──quic──> server
+mosh+relay ──udp──> relay ──quic──> server
 ```
 
-Four transport bridges (sshBridge, moshBridge, wsBridge, relayBridge)
-all implement `net.Conn` and feed the same `handle()` loop.
+Five transport bridges (sshBridge, moshBridge, wsBridge, relayBridge,
+streamBridge) all implement `net.Conn` and feed the same `handle()`
+loop. Mosh through the relay uses a NAT bridge: latch requests a
+public UDP port from the relay over QUIC, and the relay forwards
+datagrams bidirectionally.
 
 ## License
 
