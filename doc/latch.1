@@ -119,14 +119,14 @@ The relay service allows SSH access to machines behind NAT via
 Once configured, anyone with your SSH key can connect:
 .PP
 .RS
-.B ssh -J unixshells.com user@rasengan.unixshells.com
+.B ssh -J relay.unixshells.com latch@macbook.alice.unixshells.com
 .RE
 .PP
 The relay is a dumb pipe. All traffic is end-to-end encrypted SSH ciphertext;
 the relay server never sees plaintext.
 .PP
 Sign up with
-.BR "latch relay signup" .
+.BR "latch relay register" .
 The relay key is stored at
 .IR ~/.latch/relay.key .
 .SH FILES

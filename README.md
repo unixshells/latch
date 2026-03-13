@@ -77,7 +77,7 @@ with non-extractable keys in IndexedDB.
 latch relay register                   # create account
 latch relay enable                     # enable in config
 latch new --ssh
-ssh macbook.alice.unixshells.com       # from anywhere
+ssh macbook                            # from anywhere (with ssh config)
 ```
 
 Persistent QUIC connection to the relay. No public IP, port
