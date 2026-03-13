@@ -1,0 +1,165 @@
+.TH LATCH 1 "2026-03-09" "latch" "User Commands"
+.SH NAME
+latch \- terminal multiplexer with built-in remote access
+.SH SYNOPSIS
+.B latch
+.RI [ command ]
+.RI [ options ]
+.SH DESCRIPTION
+.B latch
+is a terminal multiplexer with built-in SSH and web access.
+Sessions and windows are managed by a background daemon.
+Local clients connect over a Unix socket, remote clients via SSH,
+and browsers via HTTPS/WebSocket.
+.PP
+Running
+.B latch
+with no arguments starts or attaches to the default session.
+The daemon auto-starts on first use.
+.SH COMMANDS
+.TP
+.B (none)
+Start or attach to the default session.
+.TP
+.B new \fR[\fIname\fR] [\fB\-\-ssh\fR [\fIaddr\fR]] [\fB\-\-web\fR [\fIaddr\fR]]
+Create a new session. Defaults to \fBdefault\fR.
+With \fB\-\-ssh\fR, start the SSH server (default \fB:2222\fR).
+With \fB\-\-web\fR, start the web terminal (default \fB:7680\fR).
+.TP
+.B attach \fR[\fIname\fR]
+Attach to an existing session. Fails if the session does not exist.
+.TP
+.B ls
+List all sessions with their status.
+.TP
+.B kill \fIname\fR
+Kill a session by name.
+.TP
+.B relay signup
+Sign up for Unix Shells relay service. Prompts for email, username,
+and device name. Generates a relay key and writes relay config.
+.TP
+.B relay init
+Add a new device to an existing account. Prompts for email and device name.
+.TP
+.B relay status
+Show relay configuration and connection status.
+.TP
+.B relay enable
+Enable the relay connection.
+.TP
+.B relay disable
+Disable the relay connection.
+.TP
+.B relay ssh\-config
+Print an SSH config snippet for connecting through the relay.
+.TP
+.B \-\-version
+Print version and exit.
+.SH KEY BINDINGS
+The prefix key is
+.B Ctrl-]
+(configurable). Press prefix, then:
+.PP
+.TS
+l l.
+c	New window
+n	Next window
+p	Previous window
+0-9	Select window by number
+g<N><Enter>	Go to window N (for windows beyond 9)
+x	Close window
+s	Admin panel (connections, SSH/relay toggles)
+d	Detach from session
+Ctrl-]	Send literal Ctrl-]
+.TE
+.PP
+Double-tap the prefix key quickly to lock the HUD on screen.
+Double-tap again to dismiss it.
+.SH MOUSE
+Mouse events are passed through to applications running inside panes
+(vim, less, etc.). Mouse support can be disabled in the config file.
+.SH REMOTE ACCESS
+.SS SSH
+.PP
+.RS
+.B latch new \-\-ssh
+.RE
+.PP
+Then connect from any machine:
+.PP
+.RS
+.B ssh -p 2222 user@host
+.RE
+.PP
+Authentication uses
+.I ~/.latch/authorized_keys
+(same format as OpenSSH). If the file is absent, all SSH connections are rejected.
+A session name can be specified via the SSH exec channel:
+.PP
+.RS
+.B ssh -p 2222 user@host work
+.RE
+.SS Web
+.PP
+.RS
+.B latch new \-\-web
+.RE
+.PP
+Then open
+.B https://host:7680
+in a browser. Uses a self-signed TLS 1.3 certificate (auto-generated).
+.PP
+The web terminal supports paste (text, images, files) via the browser
+clipboard and drag-and-drop.
+.SS Relay (Unix Shells)
+.PP
+The relay service allows SSH access to machines behind NAT via
+.BR unixshells.com .
+Once configured, anyone with your SSH key can connect:
+.PP
+.RS
+.B ssh -J unixshells.com user@rasengan.unixshells.com
+.RE
+.PP
+The relay is a dumb pipe. All traffic is end-to-end encrypted SSH ciphertext;
+the relay server never sees plaintext.
+.PP
+Sign up with
+.BR "latch relay signup" .
+The relay key is stored at
+.IR ~/.latch/relay.key .
+.SH FILES
+.TP
+.I ~/.latch/sock
+Unix domain socket for local IPC.
+.TP
+.I ~/.latch/config
+Configuration file. See
+.BR latch.conf (5).
+.TP
+.I ~/.latch/host_key
+Ed25519 SSH host key (auto-generated).
+.TP
+.I ~/.latch/authorized_keys
+SSH public keys for remote access authentication.
+.TP
+.I ~/.latch/tls.crt\fR, \fI~/.latch/tls.key
+TLS certificate and key for web terminal (auto-generated).
+.TP
+.I ~/.latch/relay.key
+Ed25519 key for relay authentication (auto-generated on signup).
+.SH ENVIRONMENT
+.TP
+.B SHELL
+Default shell for new windows (overridden by config).
+.TP
+.B TERM
+Set to
+.B xterm-256color
+for processes inside latch.
+.SH SEE ALSO
+.BR latch.conf (5),
+.BR tmux (1),
+.BR screen (1),
+.BR ssh (1)

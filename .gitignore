@@ -1,0 +1,7 @@
+/latch
+latch-linux-*
+latch-darwin-*
+latch-freebsd-*
+*.exe
+*.test
+*.out

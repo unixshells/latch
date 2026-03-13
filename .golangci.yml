@@ -1,0 +1,24 @@
+linters:
+  disable-all: true
+  enable:
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - gosimple
+    - gocritic
+    - misspell
+
+linters-settings:
+  gocritic:
+    enabled-checks:
+      - appendCombine
+      - dupImport
+      - nilValReturn
+      - rangeValCopy
+
+issues:
+  exclude-dirs:
+    - vendor
+  max-issues-per-linter: 0
+  max-same-issues: 0
