@@ -39,7 +39,7 @@ func Default() *Config {
 		PrefixKey:        0x1d, // Ctrl-]
 		ScrollbackLines:  10000,
 		MaxSessions:      64,
-		Mouse:            true,
+		Mouse:            false,
 		RenderCoalesceMs: 2,
 		SSHAddr:          ":2222",
 		WebAddr:          ":7680",

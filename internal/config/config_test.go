@@ -14,8 +14,8 @@ func TestDefault(t *testing.T) {
 	if cfg.MaxSessions != 64 {
 		t.Fatalf("max-sessions: got %d, want 64", cfg.MaxSessions)
 	}
-	if !cfg.Mouse {
-		t.Fatal("mouse: expected true")
+	if cfg.Mouse {
+		t.Fatal("mouse: expected false")
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
+	"os"
 	"sync"
 	"time"
 
@@ -84,6 +85,7 @@ func (p *PersistentConn) run() {
 		cancel()
 
 		if err != nil {
+			fmt.Fprintf(os.Stderr, "relay: %v (retry in %s)\n", err, backoff)
 			select {
 			case <-p.stop:
 				return
