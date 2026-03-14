@@ -44,8 +44,8 @@ top/bottom, `q` exit.
 
 ```sh
 latch new --ssh                        # SSH on :2222
-ssh -p 2222 user@host                  # attach default session
-ssh -p 2222 user@host work             # attach named session
+ssh -p 2222 default@host               # attach default session
+ssh -p 2222 work@host                  # attach named session
 ```
 
 Auth: `~/.latch/authorized_keys`. No file = reject all.
@@ -54,7 +54,7 @@ Auth: `~/.latch/authorized_keys`. No file = reject all.
 
 ```sh
 latch new --ssh
-mosh user@host --ssh="ssh -p 2222"
+mosh default@host --ssh="ssh -p 2222"
 ```
 
 Mosh connections get full latch sessions -- same windows, HUD, admin
@@ -78,7 +78,8 @@ latch relay register                   # create account
 latch relay enable                     # enable in config
 latch new --ssh
 ssh macbook                            # from anywhere (with ssh config)
-mosh --ssh="ssh -J relay.unixshells.com" macbook.alice.unixshells.com
+ssh -o User=work macbook               # connect to "work" session
+mosh --ssh="ssh -J relay.unixshells.com" default@macbook.alice.unixshells.com
 ```
 
 Persistent QUIC connection to the relay. No public IP, port
