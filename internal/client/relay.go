@@ -48,6 +48,7 @@ func RelayRegister(configPath string) error {
 	}
 
 	hostname, _ := os.Hostname()
+	hostname = strings.TrimSuffix(hostname, ".local")
 	fmt.Printf("device name [%s]: ", hostname)
 	device, _ := reader.ReadString('\n')
 	device = strings.TrimSpace(device)
@@ -147,6 +148,7 @@ func RelayAdd(configPath string) error {
 	}
 
 	hostname, _ := os.Hostname()
+	hostname = strings.TrimSuffix(hostname, ".local")
 	fmt.Printf("device name [%s]: ", hostname)
 	device, _ := reader.ReadString('\n')
 	device = strings.TrimSpace(device)
@@ -873,8 +875,8 @@ func validateDevice(s string) error {
 		return fmt.Errorf("device name must be 63 characters or less")
 	}
 	for _, c := range s {
-		if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '.') {
-			return fmt.Errorf("device name may only contain letters, digits, hyphens, and dots")
+		if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-') {
+			return fmt.Errorf("device name may only contain letters, digits, and hyphens")
 		}
 	}
 	return nil

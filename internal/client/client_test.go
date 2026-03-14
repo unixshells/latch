@@ -657,13 +657,13 @@ func TestValidateUsername(t *testing.T) {
 }
 
 func TestValidateDevice(t *testing.T) {
-	valid := []string{"macbook", "server-1", "Host.local", "a"}
+	valid := []string{"macbook", "server-1", "MyHost", "a"}
 	for _, s := range valid {
 		if err := validateDevice(s); err != nil {
 			t.Errorf("validateDevice(%q) = %v, want nil", s, err)
 		}
 	}
-	invalid := []string{"", "a b", "foo/bar"}
+	invalid := []string{"", "a b", "foo/bar", "Host.local"}
 	for _, s := range invalid {
 		if err := validateDevice(s); err == nil {
 			t.Errorf("validateDevice(%q) = nil, want error", s)

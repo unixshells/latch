@@ -131,6 +131,9 @@ func (s *Server) handleSSHSession(ch ssh.Channel, reqs <-chan *ssh.Request, user
 	defer timeout.Stop()
 
 	session := "default"
+	if user != "" && user != "latch" && mux.ValidateSessionName(user) == nil {
+		session = user
+	}
 	for {
 		select {
 		case <-timeout.C:
