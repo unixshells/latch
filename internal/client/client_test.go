@@ -3,10 +3,10 @@ package client
 import (
 	"encoding/binary"
 	"net"
-	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/unixshells/latch/internal/input"
 	"github.com/unixshells/latch/internal/mux"
 	"github.com/unixshells/latch/pkg/proto"
 )
@@ -58,7 +58,7 @@ func (m *mockConn) clear() {
 
 func TestHandlePrefixDetach(t *testing.T) {
 	var m mockConn
-	consumed, err := handlePrefixW(&m, 'd')
+	consumed, err := input.HandlePrefix(&m, 'd')
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +72,7 @@ func TestHandlePrefixDetach(t *testing.T) {
 
 func TestHandlePrefixNewWindow(t *testing.T) {
 	var m mockConn
-	consumed, err := handlePrefixW(&m, 'c')
+	consumed, err := input.HandlePrefix(&m, 'c')
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +86,7 @@ func TestHandlePrefixNewWindow(t *testing.T) {
 
 func TestHandlePrefixNextPrevWindow(t *testing.T) {
 	var m mockConn
-	consumed, err := handlePrefixW(&m, 'n')
+	consumed, err := input.HandlePrefix(&m, 'n')
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,7 +98,7 @@ func TestHandlePrefixNextPrevWindow(t *testing.T) {
 	}
 
 	m.clear()
-	consumed, err = handlePrefixW(&m, 'p')
+	consumed, err = input.HandlePrefix(&m, 'p')
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +114,7 @@ func TestHandlePrefixWindowSelect(t *testing.T) {
 	for i := 0; i <= 9; i++ {
 		var m mockConn
 		b := byte('0' + i)
-		consumed, err := handlePrefixW(&m, b)
+		consumed, err := input.HandlePrefix(&m, b)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -132,7 +132,7 @@ func TestHandlePrefixWindowSelect(t *testing.T) {
 
 func TestHandlePrefixClose(t *testing.T) {
 	var m mockConn
-	consumed, err := handlePrefixW(&m, 'x')
+	consumed, err := input.HandlePrefix(&m, 'x')
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,7 +147,7 @@ func TestHandlePrefixClose(t *testing.T) {
 func TestHandlePrefixGotoNotConsumed(t *testing.T) {
 	// 'g' is handled inline by readInput (goto mode), not handlePrefix
 	var m mockConn
-	consumed, err := handlePrefixW(&m, 'g')
+	consumed, err := input.HandlePrefix(&m, 'g')
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +158,7 @@ func TestHandlePrefixGotoNotConsumed(t *testing.T) {
 
 func TestHandlePrefixLiteralNotConsumed(t *testing.T) {
 	var m mockConn
-	consumed, err := handlePrefixW(&m, 0x1d)
+	consumed, err := input.HandlePrefix(&m, 0x1d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -169,7 +169,7 @@ func TestHandlePrefixLiteralNotConsumed(t *testing.T) {
 
 func TestHandlePrefixUnknown(t *testing.T) {
 	var m mockConn
-	consumed, err := handlePrefixW(&m, 'Q')
+	consumed, err := input.HandlePrefix(&m, 'Q')
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,19 +181,15 @@ func TestHandlePrefixUnknown(t *testing.T) {
 	}
 }
 
-// newProcessor creates an inputProcessor with defaults for testing.
-func newProcessor(pfx byte) *inputProcessor {
-	var ap atomic.Pointer[mux.AdminState]
-	return &inputProcessor{
-		prefixKey: pfx,
-		adminPtr:  &ap,
-	}
+// newProcessor creates an input.Processor with defaults for testing.
+func newProcessor(pfx byte) *input.Processor {
+	return &input.Processor{PrefixKey: pfx}
 }
 
 // feed sends bytes through the processor and returns captured messages.
-func feed(p *inputProcessor, input ...byte) []mockMsg {
+func feed(p *input.Processor, in ...byte) []mockMsg {
 	var m mockConn
-	p.processInput(&m, input, len(input))
+	p.Process(&m, in, len(in))
 	return m.msgs
 }
 
@@ -287,7 +283,7 @@ func TestProcessInputAdminPanel(t *testing.T) {
 	if !found {
 		t.Fatal("expected MsgAdminPanel(1) to open panel")
 	}
-	if !p.adminOpen {
+	if !p.AdminOpen {
 		t.Fatal("expected adminOpen = true")
 	}
 
@@ -318,7 +314,7 @@ func TestProcessInputAdminPanel(t *testing.T) {
 	if !found {
 		t.Fatal("expected MsgAdminPanel(0) to close panel")
 	}
-	if p.adminOpen {
+	if p.AdminOpen {
 		t.Fatal("expected adminOpen = false after 'q'")
 	}
 }
@@ -331,8 +327,8 @@ func TestProcessInputAdminKick(t *testing.T) {
 		Conns:    []mux.AdminConn{{ID: 42}},
 		Selected: 0,
 	}
-	p.adminPtr.Store(state)
-	p.adminOpen = true
+	p.AdminState = func() *mux.AdminState { return state }
+	p.AdminOpen = true
 
 	msgs := feed(p, 'x')
 	if len(msgs) != 1 || msgs[0].typ != proto.MsgAdminAction {
@@ -418,7 +414,7 @@ func TestProcessInputLiteralPrefix(t *testing.T) {
 	// second with same key sends literal since lastPrefixTime is old).
 	feed(p, 0x1d) // sets prefix=true
 	// Wait is implicit since lastPrefixTime was just set
-	p.lastPrefixTime = time.Now().Add(-time.Second) // force >300ms gap
+	p.LastPrefixTime = time.Now().Add(-time.Second) // force >300ms gap
 	msgs := feed(p, 0x1d)
 	hasLiteral := false
 	for _, m := range msgs {
@@ -438,7 +434,7 @@ func TestProcessInputHUDLock(t *testing.T) {
 	feed(p, 0x1d) // prefix=true, shows HUD
 	// Second prefix within 300ms → toggle hudLocked
 	_ = feed(p, 0x1d)
-	if !p.hudLocked {
+	if !p.HUDLocked {
 		t.Fatal("expected hudLocked = true after double-tap")
 	}
 
@@ -457,7 +453,7 @@ func TestProcessInputScrollMode(t *testing.T) {
 
 	// Enter scroll mode: prefix → [
 	msgs := feed(p, 0x1d, '[')
-	if !p.scrollMode {
+	if !p.ScrollMode {
 		t.Fatal("expected scrollMode = true")
 	}
 	found := false
@@ -502,7 +498,7 @@ func TestProcessInputScrollMode(t *testing.T) {
 
 	// Exit with 'q'
 	msgs = feed(p, 'q')
-	if p.scrollMode {
+	if p.ScrollMode {
 		t.Fatal("expected scrollMode = false after 'q'")
 	}
 	found = false
@@ -521,13 +517,13 @@ func TestProcessInputScrollModeExitG(t *testing.T) {
 
 	// Enter scroll mode
 	feed(p, 0x1d, '[')
-	if !p.scrollMode {
+	if !p.ScrollMode {
 		t.Fatal("expected scrollMode = true")
 	}
 
 	// Exit with 'G' (go to bottom)
 	msgs := feed(p, 'G')
-	if p.scrollMode {
+	if p.ScrollMode {
 		t.Fatal("expected scrollMode = false after 'G'")
 	}
 	found := false
@@ -549,7 +545,7 @@ func TestProcessInputScrollModeExitEsc(t *testing.T) {
 
 	// Exit with Esc
 	msgs := feed(p, 0x1b)
-	if p.scrollMode {
+	if p.ScrollMode {
 		t.Fatal("expected scrollMode = false after Esc")
 	}
 	found := false
