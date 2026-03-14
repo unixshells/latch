@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"crypto/subtle"
 	"encoding/binary"
 	"errors"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"github.com/pkg/sftp"
+	"github.com/unixshells/latch/internal/input"
 	"github.com/unixshells/latch/internal/mux"
 	"github.com/unixshells/latch/pkg/proto"
 	"github.com/unixshells/latch/pkg/transport"
@@ -123,6 +125,7 @@ func (s *Server) handleSSHSession(ch ssh.Channel, reqs <-chan *ssh.Request, user
 		ch:         ch,
 		reqs:       reqs,
 		remoteAddr: remoteAddr,
+		input:      &input.Processor{PrefixKey: s.cfg.PrefixKey},
 	}
 
 	// Wait for a pty-req or shell/exec request before starting.
@@ -219,7 +222,7 @@ func (s *Server) marshalSession(bridge *sshBridge, session string) []byte {
 }
 
 // sshBridge adapts an SSH channel to a net.Conn-like interface.
-// Read: translates SSH data into proto-formatted bytes.
+// Read: translates SSH data into proto-formatted bytes with prefix key processing.
 // Write: extracts MsgOutput payloads and sends raw ANSI to the channel.
 type sshBridge struct {
 	ch         ssh.Channel
@@ -230,6 +233,7 @@ type sshBridge struct {
 	readBuf    []byte
 	chBuf      [4096]byte // reusable read buffer for SSH channel
 	mu         sync.Mutex
+	input      *input.Processor
 }
 
 func (b *sshBridge) handlePTYReq(req *ssh.Request) {
@@ -316,13 +320,23 @@ func (b *sshBridge) Read(p []byte) (int, error) {
 		return 0, err
 	}
 
-	msg, err := proto.MarshalMsg(proto.MsgInput, b.chBuf[:n])
-	if err != nil {
-		return 0, err
+	// Process input through prefix key handler if configured,
+	// otherwise wrap as raw MsgInput.
+	var buf bytes.Buffer
+	if b.input != nil {
+		if err := b.input.Process(&buf, b.chBuf[:n], n); err != nil {
+			return 0, err
+		}
+	} else {
+		msg, err := proto.MarshalMsg(proto.MsgInput, b.chBuf[:n])
+		if err != nil {
+			return 0, err
+		}
+		buf.Write(msg)
 	}
 
 	b.mu.Lock()
-	b.readBuf = append(b.readBuf, msg...)
+	b.readBuf = append(b.readBuf, buf.Bytes()...)
 	n = copy(p, b.readBuf)
 	b.readBuf = b.readBuf[n:]
 	b.mu.Unlock()
