@@ -36,7 +36,7 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
         run: |
           out="latch-${GOOS}-${GOARCH}"
-          go build -trimpath -ldflags="-s -w" -o "${out}" ./cmd/latch
+          go build -trimpath -ldflags="-s -w -X main.version=${GITHUB_REF_NAME}" -o "${out}" ./cmd/latch
           sha256sum "${out}" > "${out}.sha256"
       - uses: actions/upload-artifact@v4
         with:
