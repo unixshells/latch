@@ -588,8 +588,14 @@ func parseMoshPorts(cmd string) (low, high int) {
 
 func makePublicKeyCallback(authorized []transport.AuthorizedKey) func(ssh.ConnMetadata, ssh.PublicKey) (*ssh.Permissions, error) {
 	return func(_ ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
+		// Reload authorized keys from disk on each attempt so new keys
+		// take effect without restarting the daemon.
+		keys, err := transport.LoadAuthorizedKeys(transport.AuthorizedKeysPath())
+		if err != nil || len(keys) == 0 {
+			keys = authorized // fall back to startup snapshot
+		}
 		keyBytes := key.Marshal()
-		for _, ak := range authorized {
+		for _, ak := range keys {
 			if subtle.ConstantTimeCompare(ak.Key.Marshal(), keyBytes) == 1 {
 				return &ssh.Permissions{
 					Extensions: map[string]string{
