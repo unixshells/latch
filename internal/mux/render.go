@@ -34,7 +34,7 @@ func Render(sess *Session, totalCols, totalRows int, hud *HUDInfo) []byte {
 	paneArea := Rect{0, 0, totalCols, totalRows}
 
 	var buf []byte
-	buf = append(buf, "\x1b[?2004h\x1b[?1004h\x1b[?25l"...)
+	buf = append(buf, "\x1b[?2004h\x1b[?25l"...)
 
 	buf = renderPaneCells(buf, pane, paneArea)
 

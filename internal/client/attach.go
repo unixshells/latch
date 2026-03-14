@@ -68,7 +68,7 @@ func Attach(sockPath string, name string, create bool, pfxKey byte) error {
 
 	err = <-done
 	// Disable mouse, bracketed paste, focus events; clear screen on detach
-	os.Stdout.Write([]byte("\x1b[?1000l\x1b[?1002l\x1b[?1006l\x1b[?2004l\x1b[?1004l\x1b[?25h\x1b[0m\x1b[2J\x1b[H"))
+	os.Stdout.Write([]byte("\x1b[?1000l\x1b[?1002l\x1b[?1006l\x1b[?2004l\x1b[?25h\x1b[0m\x1b[2J\x1b[H"))
 	return err
 }
 
