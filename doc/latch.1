@@ -89,17 +89,20 @@ Mouse events are passed through to applications running inside panes
 Then connect from any machine:
 .PP
 .RS
-.B ssh -p 2222 user@host
+.B ssh -p 2222 default@host
+.RE
+.PP
+The SSH username selects which latch session to attach to. Use
+.B default
+for the default session, or any other name for a named session:
+.PP
+.RS
+.B ssh -p 2222 work@host
 .RE
 .PP
 Authentication uses
 .I ~/.latch/authorized_keys
 (same format as OpenSSH). If the file is absent, all SSH connections are rejected.
-A session name can be specified via the SSH exec channel:
-.PP
-.RS
-.B ssh -p 2222 user@host work
-.RE
 .SS Web
 .PP
 .RS
@@ -119,7 +122,7 @@ The relay service allows SSH access to machines behind NAT via
 Once configured, anyone with your SSH key can connect:
 .PP
 .RS
-.B ssh -J relay.unixshells.com latch@macbook.alice.unixshells.com
+.B ssh -J relay.unixshells.com default@macbook.alice.unixshells.com
 .RE
 .PP
 The relay is a dumb pipe. All traffic is end-to-end encrypted SSH ciphertext;
