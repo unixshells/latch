@@ -546,13 +546,16 @@ func RelaySSHConfig(configPath string) error {
 	fmt.Printf("Host %s\n", alias)
 	fmt.Printf("    HostName %s\n", hostname)
 	fmt.Printf("    ProxyJump %s\n", jump)
-	fmt.Printf("    User latch\n")
+	fmt.Printf("    User default\n")
 	fmt.Println()
 	fmt.Printf("# Then connect with:\n")
 	fmt.Printf("#   ssh %s\n", alias)
 	fmt.Println()
+	fmt.Printf("# Connect to a specific session:\n")
+	fmt.Printf("#   ssh -o User=work %s\n", alias)
+	fmt.Println()
 	fmt.Printf("# Or without config:\n")
-	fmt.Printf("#   ssh -J %s latch@%s\n", jump, hostname)
+	fmt.Printf("#   ssh -J %s default@%s\n", jump, hostname)
 	return nil
 }
 
