@@ -525,10 +525,13 @@ func (s *Server) handleMoshExec(ch ssh.Channel, cmd string, remoteAddr net.Addr,
 	// connects to the relay's public port instead of the local one.
 	var bridgeStream interface{ Close() error }
 	if viaRelay && s.relayCon != nil {
-		relayPort, _, stream, err := s.RequestUDPBridge(uint16(srv.Port()))
+		relayPort, relayAddr, stream, err := s.RequestUDPBridge(uint16(srv.Port()))
 		if err == nil {
 			bridgeStream = stream
-			fmt.Fprintf(ch, "MOSH CONNECT %d %s\n", relayPort, srv.KeyBase64())
+			fmt.Fprintf(ch, "\nMOSH CONNECT %d %s\n", relayPort, srv.KeyBase64())
+			if relayAddr != "" {
+				fmt.Fprintf(ch, "MOSH IP %s\n", relayAddr)
+			}
 
 			// Bridge UDP↔QUIC: relay sends framed datagrams [len:2][data]
 			// on the QUIC stream, forward them to the local mosh UDP port.
