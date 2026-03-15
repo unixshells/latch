@@ -35,6 +35,9 @@ type PersistentConn struct {
 
 	// WebFunc is called for each accepted web terminal stream.
 	WebFunc func(*quic.Stream)
+
+	// ConnectedFunc is called each time a relay connection is established.
+	ConnectedFunc func()
 }
 
 // NewPersistentConn creates a new persistent relay connection.
@@ -111,6 +114,10 @@ func (p *PersistentConn) run() {
 		p.conn = conn
 		p.mu.Unlock()
 
+		if p.ConnectedFunc != nil {
+			p.ConnectedFunc()
+		}
+
 		p.acceptLoop(conn)
 
 		p.mu.Lock()
@@ -129,6 +136,29 @@ func (p *PersistentConn) OpenStream(ctx context.Context) (*quic.Stream, error) {
 		return nil, fmt.Errorf("not connected to relay")
 	}
 	return c.OpenStream(ctx)
+}
+
+// PushSessions sends a session metadata update to the relay.
+// Format: [0x04][len:2][json]
+func (p *PersistentConn) PushSessions(data []byte) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	stream, err := p.OpenStream(ctx)
+	if err != nil {
+		return err
+	}
+	defer stream.Close()
+
+	var hdr [3]byte
+	hdr[0] = 0x04
+	hdr[1] = byte(len(data) >> 8)
+	hdr[2] = byte(len(data))
+	if _, err := stream.Write(hdr[:]); err != nil {
+		return err
+	}
+	_, err = stream.Write(data)
+	return err
 }
 
 func (p *PersistentConn) acceptLoop(conn *Conn) {

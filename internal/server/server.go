@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -209,6 +210,7 @@ func (s *Server) handleNew(conn net.Conn, name string) {
 	s.sessions = append(s.sessions, sess)
 	s.mu.Unlock()
 
+	s.pushSessionsToRelay()
 	s.attachSession(conn, sess)
 }
 
@@ -747,16 +749,22 @@ func (s *Server) handleList(conn net.Conn) {
 
 func (s *Server) handleKill(conn net.Conn, name string) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	var killed bool
 	for i, sess := range s.sessions {
 		if sess.Name == name {
 			sess.Close()
 			s.sessions = append(s.sessions[:i], s.sessions[i+1:]...)
-			proto.Encode(conn, proto.MsgSessionList, []byte("killed"))
-			return
+			killed = true
+			break
 		}
 	}
-	proto.Encode(conn, proto.MsgError, []byte(fmt.Sprintf("no session: %s", name)))
+	s.mu.Unlock()
+	if killed {
+		proto.Encode(conn, proto.MsgSessionList, []byte("killed"))
+		s.pushSessionsToRelay()
+	} else {
+		proto.Encode(conn, proto.MsgError, []byte(fmt.Sprintf("no session: %s", name)))
+	}
 }
 
 func (s *Server) handleEnableSSH(conn net.Conn, addr string) {
@@ -817,6 +825,40 @@ func (s *Server) reap() {
 	s.sessions = alive
 }
 
+// pushSessionsToRelay sends the current session list to the relay.
+// Must be called without s.mu held (it acquires the lock).
+func (s *Server) pushSessionsToRelay() {
+	if s.relayCon == nil {
+		return
+	}
+
+	s.mu.Lock()
+	type sessionJSON struct {
+		Name   string `json:"name"`
+		Status string `json:"status"`
+		Title  string `json:"title"`
+	}
+	list := make([]sessionJSON, 0, len(s.sessions))
+	for _, sess := range s.sessions {
+		status := "alive"
+		if sess.Dead() {
+			status = "dead"
+		}
+		list = append(list, sessionJSON{
+			Name:   sess.Name,
+			Status: status,
+			Title:  sess.Title(),
+		})
+	}
+	s.mu.Unlock()
+
+	data, err := json.Marshal(list)
+	if err != nil {
+		return
+	}
+	go s.relayCon.PushSessions(data)
+}
+
 // shutdownIfEmpty closes the listener if no sessions or clients remain,
 // causing Serve to return and the daemon to exit.
 func (s *Server) shutdownIfEmpty() {
@@ -824,6 +866,7 @@ func (s *Server) shutdownIfEmpty() {
 	s.reap()
 	empty := len(s.sessions) == 0 && len(s.clients) == 0
 	s.mu.Unlock()
+	s.pushSessionsToRelay()
 	if empty {
 		s.Close()
 	}

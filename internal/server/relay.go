@@ -48,6 +48,9 @@ func (s *Server) StartRelay(addr, user, device, caFile string) error {
 	p.WebFunc = func(raw *quic.Stream) {
 		s.handleWebTerminalStream(raw)
 	}
+	p.ConnectedFunc = func() {
+		s.pushSessionsToRelay()
+	}
 	s.relayCon = p
 	p.Start()
 	fmt.Fprintf(os.Stderr, "latch relay connecting to %s as %s/%s\n", addr, user, device)
