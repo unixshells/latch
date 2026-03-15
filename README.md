@@ -50,6 +50,15 @@ ssh -p 2222 work@host                  # attach named session
 
 Auth: `~/.latch/authorized_keys`. No file = reject all.
 
+Managing keys:
+
+```sh
+latch auth add ~/.ssh/id_ed25519.pub   # add a public key
+latch auth add "ssh-ed25519 AAAA..."   # add inline key string
+latch auth list                        # list authorized keys
+latch auth remove user@laptop          # remove by comment
+```
+
 ### Mosh
 
 ```sh
