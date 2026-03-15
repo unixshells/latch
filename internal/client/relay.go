@@ -2,11 +2,13 @@ package client
 
 import (
 	"bufio"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -14,6 +16,16 @@ import (
 	"github.com/unixshells/latch/pkg/transport"
 	"golang.org/x/crypto/ssh"
 )
+
+// signAuthToken creates a "timestamp:base64(signature)" token for API auth.
+func signAuthToken(signer ssh.Signer) (string, error) {
+	ts := strconv.FormatInt(time.Now().UnixMilli(), 10)
+	sig, err := signer.Sign(nil, []byte(ts))
+	if err != nil {
+		return "", err
+	}
+	return ts + ":" + base64.StdEncoding.EncodeToString(ssh.Marshal(sig)), nil
+}
 
 // RelayRegister creates a new relay account: generates a key, calls the API,
 // and the server emails the payment link.
@@ -403,7 +415,21 @@ func RelaySessions(configPath string) error {
 		host = "unixshells.com"
 	}
 
-	resp, err := http.Get("https://" + host + "/api/sessions/" + cfg.RelayUser)
+	signer, _, err := transport.LoadOrGenerateRelayKey(transport.RelayKeyPath())
+	if err != nil {
+		return fmt.Errorf("load relay key: %w", err)
+	}
+	token, err := signAuthToken(signer)
+	if err != nil {
+		return fmt.Errorf("sign auth token: %w", err)
+	}
+
+	req, err := http.NewRequest("GET", "https://"+host+"/api/sessions/"+cfg.RelayUser, nil)
+	if err != nil {
+		return fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("API request: %w", err)
 	}
