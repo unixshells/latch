@@ -58,8 +58,14 @@ func (p *PersistentConn) Start() {
 
 // Stop closes the connection and stops reconnecting.
 func (p *PersistentConn) Stop() {
-	close(p.stop)
 	p.mu.Lock()
+	select {
+	case <-p.stop:
+		p.mu.Unlock()
+		return // Already stopped.
+	default:
+		close(p.stop)
+	}
 	if p.conn != nil {
 		p.conn.Close()
 	}
