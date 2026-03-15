@@ -435,6 +435,10 @@ func RelaySessions(configPath string) error {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("API error: %s", resp.Status)
+	}
+
 	var result struct {
 		Devices []struct {
 			Device string `json:"device"`
