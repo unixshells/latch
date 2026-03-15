@@ -922,14 +922,15 @@ func TestRelayAuthEmptyDevice(t *testing.T) {
 
 	// Server that reads identity and rejects empty device.
 	serverDone := make(chan error, 1)
+	serverCtx, serverCancel := context.WithCancel(context.Background())
+	defer serverCancel()
 	go func() {
-		ctx := context.Background()
-		conn, err := ln.Accept(ctx)
+		conn, err := ln.Accept(serverCtx)
 		if err != nil {
 			serverDone <- err
 			return
 		}
-		stream, err := conn.AcceptStream(ctx)
+		stream, err := conn.AcceptStream(serverCtx)
 		if err != nil {
 			serverDone <- err
 			return
@@ -976,7 +977,11 @@ func TestRelayAuthEmptyDevice(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected auth error for empty device")
 	}
-	<-serverDone
+	serverCancel()
+	select {
+	case <-serverDone:
+	case <-time.After(2 * time.Second):
+	}
 }
 
 func TestPersistentConnWithServer(t *testing.T) {
