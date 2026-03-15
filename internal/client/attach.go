@@ -10,6 +10,7 @@ import (
 	"github.com/unixshells/latch/internal/input"
 	"github.com/unixshells/latch/internal/mux"
 	"github.com/unixshells/latch/pkg/proto"
+	"golang.org/x/term"
 )
 
 // Attach connects to the server, sends an attach or new-session
@@ -24,6 +25,16 @@ func Attach(sockPath string, name string, create bool, pfxKey byte) error {
 		return fmt.Errorf("connect: %w", err)
 	}
 	defer conn.Close()
+
+	if !term.IsTerminal(int(os.Stdin.Fd())) {
+		// No TTY — create the session but don't attach interactively.
+		if create {
+			if err := proto.Encode(conn, proto.MsgNewSession, []byte(name)); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
 
 	raw, err := EnterRawMode()
 	if err != nil {
