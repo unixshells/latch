@@ -86,6 +86,10 @@ func (s *Server) setSSHMeta(conn net.Conn, remoteAddr net.Addr, perms *ssh.Permi
 }
 
 func (s *Server) handleSSHConn(conn net.Conn, config *ssh.ServerConfig) {
+	s.handleSSHConnRelay(conn, config, false)
+}
+
+func (s *Server) handleSSHConnRelay(conn net.Conn, config *ssh.ServerConfig, viaRelay bool) {
 	defer conn.Close()
 
 	if !s.access.SSH() {
@@ -114,11 +118,11 @@ func (s *Server) handleSSHConn(conn net.Conn, config *ssh.ServerConfig) {
 		if err != nil {
 			return
 		}
-		go s.handleSSHSession(ch, requests, sconn.User(), conn.RemoteAddr(), sconn.Permissions)
+		go s.handleSSHSession(ch, requests, sconn.User(), conn.RemoteAddr(), sconn.Permissions, viaRelay)
 	}
 }
 
-func (s *Server) handleSSHSession(ch ssh.Channel, reqs <-chan *ssh.Request, user string, remoteAddr net.Addr, perms *ssh.Permissions) {
+func (s *Server) handleSSHSession(ch ssh.Channel, reqs <-chan *ssh.Request, user string, remoteAddr net.Addr, perms *ssh.Permissions, viaRelay bool) {
 	defer ch.Close()
 
 	bridge := &sshBridge{
@@ -126,6 +130,7 @@ func (s *Server) handleSSHSession(ch ssh.Channel, reqs <-chan *ssh.Request, user
 		reqs:       reqs,
 		remoteAddr: remoteAddr,
 		input:      &input.Processor{PrefixKey: s.cfg.PrefixKey},
+		viaRelay:   viaRelay,
 	}
 
 	// Wait for a pty-req or shell/exec request before starting.
@@ -166,7 +171,7 @@ func (s *Server) handleSSHSession(ch ssh.Channel, reqs <-chan *ssh.Request, user
 							if req.WantReply {
 								req.Reply(true, nil)
 							}
-							s.handleMoshExec(ch, cmd, remoteAddr, perms)
+							s.handleMoshExec(ch, cmd, remoteAddr, perms, bridge.viaRelay)
 							return
 						}
 						session = cmd
@@ -234,6 +239,7 @@ type sshBridge struct {
 	chBuf      [4096]byte // reusable read buffer for SSH channel
 	mu         sync.Mutex
 	input      *input.Processor
+	viaRelay   bool // true if this SSH session came through the relay
 }
 
 func (b *sshBridge) handlePTYReq(req *ssh.Request) {
@@ -500,10 +506,13 @@ func (p *pipeRW) Close() error {
 //
 // When connected to a relay, it requests a UDP bridge so the standard
 // mosh client can connect through the relay's public UDP port.
-func (s *Server) handleMoshExec(ch ssh.Channel, cmd string, remoteAddr net.Addr, perms *ssh.Permissions) {
+func (s *Server) handleMoshExec(ch ssh.Channel, cmd string, remoteAddr net.Addr, perms *ssh.Permissions, viaRelay bool) {
 	defer ch.Close()
 
 	portLow, portHigh := parseMoshPorts(cmd)
+	if portLow == 0 && portHigh == 0 {
+		portLow, portHigh = 60000, 61000
+	}
 
 	srv, err := mosh.NewServer("", portLow, portHigh)
 	if err != nil {
@@ -515,13 +524,51 @@ func (s *Server) handleMoshExec(ch ssh.Channel, cmd string, remoteAddr net.Addr,
 	// If relay is active, request a UDP bridge so the mosh client
 	// connects to the relay's public port instead of the local one.
 	var bridgeStream interface{ Close() error }
-	if s.relayCon != nil {
+	if viaRelay && s.relayCon != nil {
 		relayPort, _, stream, err := s.RequestUDPBridge(uint16(srv.Port()))
 		if err == nil {
 			bridgeStream = stream
-			// Rewrite the MOSH CONNECT line to use the relay's port.
-			// The mosh client will connect UDP to the relay, which bridges to us.
 			fmt.Fprintf(ch, "MOSH CONNECT %d %s\n", relayPort, srv.KeyBase64())
+
+			// Bridge UDP↔QUIC: relay sends framed datagrams [len:2][data]
+			// on the QUIC stream, forward them to the local mosh UDP port.
+			localAddr := &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: srv.Port()}
+			bridgeUDP, err := net.DialUDP("udp4", nil, localAddr)
+			if err == nil {
+				// QUIC stream → local UDP
+				go func() {
+					defer bridgeUDP.Close()
+					var hdr [2]byte
+					for {
+						if _, err := io.ReadFull(stream, hdr[:]); err != nil {
+							return
+						}
+						n := binary.BigEndian.Uint16(hdr[:])
+						if n > 2048 {
+							return
+						}
+						buf := make([]byte, n)
+						if _, err := io.ReadFull(stream, buf); err != nil {
+							return
+						}
+						bridgeUDP.Write(buf)
+					}
+				}()
+				// Local UDP → QUIC stream
+				go func() {
+					buf := make([]byte, 2048)
+					for {
+						n, err := bridgeUDP.Read(buf)
+						if err != nil {
+							return
+						}
+						var hdr [2]byte
+						binary.BigEndian.PutUint16(hdr[:], uint16(n))
+						stream.Write(hdr[:])
+						stream.Write(buf[:n])
+					}
+				}()
+			}
 		} else {
 			// Bridge failed — fall back to original CONNECT line.
 			fmt.Fprintf(ch.Stderr(), "relay bridge: %v (falling back to direct)\r\n", err)

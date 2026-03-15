@@ -141,7 +141,7 @@ func (s *Server) handleRelayStream(stream *relay.Stream, sshCfg *ssh.ServerConfi
 		RemoteAddr: stream.RemoteAddr().String(),
 	}
 	s.setConnMeta(stream, info)
-	s.handleSSHConn(stream, sshCfg)
+	s.handleSSHConnRelay(stream, sshCfg, true)
 }
 
 // handleUDPForwardStream handles a UDP forward stream from the relay.
