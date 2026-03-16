@@ -643,9 +643,6 @@ func (s *Server) attachSession(conn net.Conn, sess *mux.Session) {
 					if scrollOffset > sbLen {
 						scrollOffset = sbLen
 					}
-					if scrollOffset == 0 {
-						scrollActive = false
-					}
 					connMu.Unlock()
 					sendRender()
 				}
