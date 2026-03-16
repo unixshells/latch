@@ -93,7 +93,7 @@ func (s *Server) handleSSHConn(conn net.Conn, config *ssh.ServerConfig) {
 func (s *Server) handleSSHConnRelay(conn net.Conn, config *ssh.ServerConfig, viaRelay bool) {
 	defer conn.Close()
 
-	if !s.access.SSH() {
+	if !viaRelay && !s.access.SSH() {
 		return
 	}
 
