@@ -41,15 +41,18 @@ type Pane struct {
 	mu         sync.Mutex
 	writers    []io.Writer
 	dead       bool
-	title      string
-	clipboard  []byte
 	scrollback ringBuffer
 	closeOnce  sync.Once
 	doneCh     chan struct{}
 
-	// Atomic flags set by VT callbacks (called under term's lock, can't use p.mu)
+	// Atomic flags set by VT callbacks (called under p.mu from readLoop, can't re-lock p.mu)
 	bell          atomic.Bool
 	cursorVisible atomic.Bool
+
+	// Separate lock for fields written by VT callbacks (OSC handlers called under p.mu)
+	cbMu      sync.Mutex
+	title     string
+	clipboard []byte
 }
 
 // NewPane spawns a shell in a new PTY with the given dimensions.
@@ -104,30 +107,47 @@ func NewPane(id int, cols, rows int, shell string, scrollbackLines ...int) (*Pan
 	p.term.RegisterOscHandler(2, p.setTitle)
 	p.term.RegisterOscHandler(52, p.handleClipboard)
 
+	// Drain the VT emulator's response pipe and write responses back to the
+	// PTY. The emulator uses io.Pipe() (synchronous, unbuffered) for terminal
+	// query responses (DA, DSR, cursor position reports, etc.). If nobody reads
+	// from the pipe, Write() blocks forever, deadlocking readLoop.
+	go func() {
+		buf := make([]byte, 4096)
+		for {
+			n, err := p.term.Read(buf)
+			if n > 0 {
+				p.ptmx.Write(buf[:n])
+			}
+			if err != nil {
+				return
+			}
+		}
+	}()
+
 	go p.readLoop()
 	return p, nil
 }
 
 func (p *Pane) setTitle(data []byte) bool {
-	p.mu.Lock()
+	p.cbMu.Lock()
 	p.title = string(data)
-	p.mu.Unlock()
+	p.cbMu.Unlock()
 	return false
 }
 
 func (p *Pane) handleClipboard(data []byte) bool {
-	p.mu.Lock()
+	p.cbMu.Lock()
 	// Store OSC 52 payload for forwarding to the client terminal.
 	p.clipboard = make([]byte, len(data))
 	copy(p.clipboard, data)
-	p.mu.Unlock()
+	p.cbMu.Unlock()
 	return true // consumed
 }
 
 // DrainClipboard returns and clears any pending OSC 52 clipboard data.
 func (p *Pane) DrainClipboard() []byte {
-	p.mu.Lock()
-	defer p.mu.Unlock()
+	p.cbMu.Lock()
+	defer p.cbMu.Unlock()
 	c := p.clipboard
 	p.clipboard = nil
 	return c
@@ -371,8 +391,8 @@ func (p *Pane) Dead() bool {
 
 // Title returns the pane's OSC title, or "shell" if unset.
 func (p *Pane) Title() string {
-	p.mu.Lock()
-	defer p.mu.Unlock()
+	p.cbMu.Lock()
+	defer p.cbMu.Unlock()
 	if p.title != "" {
 		return p.title
 	}
