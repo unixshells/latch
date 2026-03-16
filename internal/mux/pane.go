@@ -68,6 +68,9 @@ func NewPane(id int, cols, rows int, shell string, scrollbackLines ...int) (*Pan
 
 	cmd := exec.Command(shell, "-l")
 	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
+	if home, err := os.UserHomeDir(); err == nil {
+		cmd.Dir = home
+	}
 
 	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{
 		Cols: uint16(cols),
