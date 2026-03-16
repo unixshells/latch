@@ -44,6 +44,8 @@ github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
 github.com/unixshells/mosh-go v0.2.1 h1:oOaxopIA6fuoeva1DlT9wnOnxgQx9HAYzIp6maA4lmU=
 github.com/unixshells/mosh-go v0.2.1/go.mod h1:U2cUubmeUeoZrqsNufoM9bSrohfX4CPFO56tqRPMZQc=
+github.com/unixshells/vt-go v0.1.0 h1:HWILcExV8MHc6o2YqIRMIM/KrjH31kPzZrlvLS9BG6Y=
+github.com/unixshells/vt-go v0.1.0/go.mod h1:dZpOXxVyO7LG1uxkVMixX7HwUf2ZbUkEKhtHHJTTIBI=
 github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e h1:JVG44RsyaB9T2KIHavMF/ppJZNG9ZpyihvCd0w101no=
 github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e/go.mod h1:RbqR21r5mrJuqunuUZ/Dhy/avygyECGrLceyNeo4LiM=
 go.uber.org/mock v0.5.2 h1:LbtPTcP8A5k9WPXj54PPPbjcI4Y6lhyOZXn+VS7wNko=

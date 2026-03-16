@@ -1,6 +1,7 @@
 package mux
 
 import (
+	"image"
 	"strconv"
 
 	uv "github.com/charmbracelet/ultraviolet"
@@ -34,13 +35,15 @@ func Render(sess *Session, totalCols, totalRows int, hud *HUDInfo) []byte {
 	paneArea := Rect{0, 0, totalCols, totalRows}
 
 	var buf []byte
-	buf = append(buf, "\x1b[?2004h\x1b[?25l"...)
+	// Reset SGR state and hide cursor during render. No bracketed paste
+	// here — it's enabled once at attach time, not every frame.
+	buf = append(buf, "\x1b[0m\x1b[?25l"...)
 
-	buf = renderPaneCells(buf, pane, paneArea)
+	var cursor image.Point
+	buf, cursor = renderPaneCells(buf, pane, paneArea)
 
-	// Place cursor and set visibility.
-	pos := pane.CursorPos()
-	buf = appendCUP(buf, pos.Y+1, pos.X+1)
+	// Place cursor from the same atomic snapshot as the cells.
+	buf = appendCUP(buf, cursor.Y+1, cursor.X+1)
 	if pane.CursorVisible() {
 		buf = append(buf, "\x1b[?25h"...)
 	}
@@ -123,7 +126,7 @@ func validClipboard(data []byte) bool {
 	return true
 }
 
-func renderPaneCells(buf []byte, p *Pane, r Rect) []byte {
+func renderPaneCells(buf []byte, p *Pane, r Rect) ([]byte, image.Point) {
 	scr := p.Screen()
 	var prev uv.Style
 
@@ -146,7 +149,7 @@ func renderPaneCells(buf []byte, p *Pane, r Rect) []byte {
 		}
 	}
 	buf = append(buf, "\x1b[0m"...)
-	return buf
+	return buf, scr.Cursor
 }
 
 func appendStyleTransition(buf []byte, prev, next *uv.Style) []byte {

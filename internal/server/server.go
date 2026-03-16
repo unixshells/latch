@@ -320,10 +320,11 @@ func (s *Server) attachSession(conn net.Conn, sess *mux.Session) {
 	// Serialize all writes to conn and access to cols/rows.
 	var connMu sync.Mutex
 
-	// Send mouse-enable sequences once at attach, not every frame.
+	// Send mouse and bracketed paste enable sequences once at attach, not every frame.
 	if s.cfg.Mouse {
 		sendOutput(conn, []byte("\x1b[?1000h\x1b[?1002h\x1b[?1006h"))
 	}
+	sendOutput(conn, []byte("\x1b[?2004h"))
 
 	buildAdminState := func() *mux.AdminState {
 		conns := s.tracker.list()
@@ -517,6 +518,12 @@ func (s *Server) attachSession(conn net.Conn, sess *mux.Session) {
 				if p := sess.Pane(); p != nil {
 					p.WriteInput(msg.payload)
 				}
+				// Schedule a deferred render to catch application output
+				// that arrives after the notification coalesce window.
+				go func() {
+					time.Sleep(10 * time.Millisecond)
+					sendRender()
+				}()
 
 			case proto.MsgResize:
 				c, r, err := proto.DecodeResize(msg.payload)
@@ -904,7 +911,7 @@ type notifyWriter struct {
 }
 
 func newNotifyWriter() *notifyWriter {
-	return &notifyWriter{ch: make(chan struct{}, 1)}
+	return &notifyWriter{ch: make(chan struct{}, 8)}
 }
 
 func (w *notifyWriter) Write(p []byte) (int, error) {

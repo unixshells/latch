@@ -23,8 +23,9 @@ func TestRenderSinglePane(t *testing.T) {
 	if !strings.Contains(output, "\x1b[") {
 		t.Fatal("should contain ANSI escape sequences")
 	}
-	if !strings.Contains(output, "\x1b[?2004h") {
-		t.Fatal("should enable bracketed paste")
+	// Bracketed paste is now enabled once at attach time, not per-frame.
+	if strings.Contains(output, "\x1b[?2004h") {
+		t.Fatal("should not enable bracketed paste per-frame")
 	}
 	if !strings.Contains(output, "\x1b[?25h") {
 		t.Fatal("should show cursor")
@@ -109,8 +110,9 @@ func TestRenderNoMouseSequences(t *testing.T) {
 	if strings.Contains(output, "\x1b[?1000h") {
 		t.Fatal("Render should not emit mouse sequences")
 	}
-	if !strings.Contains(output, "\x1b[?2004h") {
-		t.Fatal("should still enable bracketed paste")
+	// Bracketed paste is now enabled once at attach time, not per-frame.
+	if strings.Contains(output, "\x1b[?2004h") {
+		t.Fatal("should not emit bracketed paste per-frame")
 	}
 }
 
