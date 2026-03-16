@@ -56,6 +56,7 @@ func (s *Server) ListenRemote(addr string) error {
 	fp := ssh.FingerprintSHA256(hostKey.PublicKey())
 	fmt.Fprintf(os.Stderr, "latch ssh listening on %s (key: %s)\n", addr, fp)
 
+	s.access.SetSSH(true)
 	go s.serveSSH(ln, config)
 	return nil
 }

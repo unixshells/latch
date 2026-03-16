@@ -11,7 +11,8 @@ type accessState struct {
 }
 
 func newAccessState() *accessState {
-	return &accessState{sshEnabled: true, webEnabled: true, relayEnabled: true}
+	// All access starts disabled. Each service sets its flag when it starts.
+	return &accessState{}
 }
 
 func (a *accessState) SSH() bool {

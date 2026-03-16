@@ -52,6 +52,7 @@ func (s *Server) StartRelay(addr, user, device, caFile string) error {
 		s.pushSessionsToRelay()
 	}
 	s.relayCon = p
+	s.access.SetRelay(true)
 	p.Start()
 	fmt.Fprintf(os.Stderr, "latch relay connecting to %s as %s/%s\n", addr, user, device)
 	return nil

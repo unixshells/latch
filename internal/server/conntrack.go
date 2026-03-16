@@ -2,6 +2,7 @@ package server
 
 import (
 	"io"
+	"sort"
 	"sync"
 	"time"
 )
@@ -51,6 +52,7 @@ func (t *connTracker) list() []ConnInfo {
 	for _, c := range t.conns {
 		out = append(out, *c)
 	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
 	return out
 }
 

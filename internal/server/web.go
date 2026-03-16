@@ -78,6 +78,7 @@ func (s *Server) ListenWeb(addr, certPath, keyPath string) error {
 		fp = " (cert: SHA256:" + base64.RawStdEncoding.EncodeToString(sum[:]) + ")"
 	}
 	fmt.Fprintf(os.Stderr, "latch web listening on https://%s%s\n", addr, fp)
+	s.access.SetWeb(true)
 	go func() {
 		if err := http.Serve(ln, wsMux); err != nil && !errors.Is(err, net.ErrClosed) {
 			fmt.Fprintf(os.Stderr, "web server: %v\n", err)

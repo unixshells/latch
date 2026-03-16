@@ -80,6 +80,7 @@ func testSSHServer(t *testing.T) (*Server, string, ssh.Signer, string) {
 	s.mu.Lock()
 	s.sshAddr = ln.Addr().String()
 	s.mu.Unlock()
+	s.access.SetSSH(true)
 
 	go s.serveSSH(ln, sshCfg)
 
