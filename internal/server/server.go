@@ -251,12 +251,6 @@ func (s *Server) attachSession(conn net.Conn, sess *mux.Session) {
 	meta.Session = sess.Name
 	meta.closer = conn
 
-	// Enforce single local attach.
-	if meta.Source == "local" && s.tracker.hasLocal() {
-		proto.Encode(conn, proto.MsgError, []byte("another local client is attached"))
-		return
-	}
-
 	// Per-session access control for remote clients.
 	reject := func(reason string) {
 		s.audit.emit(AuditEvent{

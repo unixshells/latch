@@ -67,7 +67,7 @@ func NewPane(id int, cols, rows int, shell string, scrollbackLines ...int) (*Pan
 	}
 
 	cmd := exec.Command(shell, "-l")
-	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
+	cmd.Env = append(os.Environ(), "TERM=xterm-256color", "LATCH_SESSION=1")
 	if home, err := os.UserHomeDir(); err == nil {
 		cmd.Dir = home
 	}

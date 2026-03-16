@@ -21,6 +21,9 @@ func main() {
 	}
 
 	if len(os.Args) < 2 {
+		if os.Getenv("LATCH_SESSION") != "" {
+			fatal("already inside a latch session")
+		}
 		ensureServer(cfg)
 		if err := client.Attach(server.SocketPath(), "default", true, cfg.PrefixKey); err != nil {
 			fatal("%v", err)
@@ -55,6 +58,9 @@ func main() {
 		serve(cfg, sshAddr, webAddr)
 
 	case "new":
+		if os.Getenv("LATCH_SESSION") != "" {
+			fatal("already inside a latch session")
+		}
 		name := "default"
 		var sshAddr, webAddr string
 		detached := false
@@ -88,6 +94,9 @@ func main() {
 		}
 
 	case "attach", "a":
+		if os.Getenv("LATCH_SESSION") != "" {
+			fatal("already inside a latch session")
+		}
 		name := "default"
 		if len(os.Args) > 2 {
 			name = os.Args[2]
