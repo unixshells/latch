@@ -27,6 +27,24 @@ func signAuthToken(signer ssh.Signer) (string, error) {
 	return ts + ":" + base64.StdEncoding.EncodeToString(ssh.Marshal(sig)), nil
 }
 
+// authedGet makes an authenticated GET request to the relay API.
+func authedGet(url string) (*http.Response, error) {
+	signer, _, err := transport.LoadOrGenerateRelayKey(transport.RelayKeyPath())
+	if err != nil {
+		return nil, fmt.Errorf("load relay key: %w", err)
+	}
+	token, err := signAuthToken(signer)
+	if err != nil {
+		return nil, fmt.Errorf("sign auth token: %w", err)
+	}
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	return http.DefaultClient.Do(req)
+}
+
 // RelayRegister creates a new relay account: generates a key, calls the API,
 // and the server emails the payment link.
 func RelayRegister(configPath string) error {
@@ -269,7 +287,7 @@ func RelayKeys(configPath string) error {
 		host = "unixshells.com"
 	}
 
-	resp, err := http.Get("https://" + host + "/api/status/" + cfg.RelayUser)
+	resp, err := authedGet("https://" + host + "/api/status/" + cfg.RelayUser)
 	if err != nil {
 		return fmt.Errorf("API request: %w", err)
 	}
@@ -356,7 +374,7 @@ func RelayRevoke(configPath string) error {
 
 	// Get email from account status.
 	email := ""
-	resp, err := http.Get("https://" + host + "/api/status/" + cfg.RelayUser)
+	resp, err := authedGet("https://" + host + "/api/status/" + cfg.RelayUser)
 	if err != nil {
 		return fmt.Errorf("could not reach %s: %w", host, err)
 	}
@@ -621,7 +639,7 @@ func RelayRotateKey(configPath string) error {
 
 	// Get email from account status.
 	email := ""
-	resp, err := http.Get("https://" + host + "/api/status/" + cfg.RelayUser)
+	resp, err := authedGet("https://" + host + "/api/status/" + cfg.RelayUser)
 	if err != nil {
 		os.Remove(newKeyPath)
 		return fmt.Errorf("could not reach %s: %w", host, err)
@@ -701,7 +719,7 @@ func RelayCancel(configPath string) error {
 
 	// Get email from account status.
 	email := ""
-	resp, err := http.Get("https://" + host + "/api/status/" + cfg.RelayUser)
+	resp, err := authedGet("https://" + host + "/api/status/" + cfg.RelayUser)
 	if err != nil {
 		return fmt.Errorf("could not reach %s: %w", host, err)
 	}
@@ -767,7 +785,7 @@ func RelayDeleteAccount(configPath string) error {
 
 	// Get email from account status.
 	email := ""
-	resp, err := http.Get("https://" + host + "/api/status/" + cfg.RelayUser)
+	resp, err := authedGet("https://" + host + "/api/status/" + cfg.RelayUser)
 	if err != nil {
 		return fmt.Errorf("could not reach %s: %w", host, err)
 	}
@@ -840,7 +858,7 @@ func RelayChangeEmail(configPath string) error {
 
 	// Get current email from account status.
 	email := ""
-	resp, err := http.Get("https://" + host + "/api/status/" + cfg.RelayUser)
+	resp, err := authedGet("https://" + host + "/api/status/" + cfg.RelayUser)
 	if err != nil {
 		return fmt.Errorf("could not reach %s: %w", host, err)
 	}

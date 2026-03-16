@@ -70,6 +70,13 @@ func (s *Server) Listen() error {
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return fmt.Errorf("mkdir: %w", err)
 	}
+
+	// Create authorized_keys with safe permissions if it doesn't exist.
+	authKeysPath := filepath.Join(dir, "authorized_keys")
+	if _, err := os.Stat(authKeysPath); os.IsNotExist(err) {
+		os.WriteFile(authKeysPath, nil, 0600)
+	}
+
 	os.Remove(s.sockPath)
 
 	// Set restrictive umask so the socket is created with 0700 from the
