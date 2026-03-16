@@ -172,7 +172,7 @@ func (s *Server) handleSSHSession(ch ssh.Channel, reqs <-chan *ssh.Request, user
 							if req.WantReply {
 								req.Reply(true, nil)
 							}
-							s.handleMoshExec(ch, cmd, remoteAddr, perms, bridge.viaRelay)
+							s.handleMoshExec(ch, cmd, remoteAddr, perms, bridge.viaRelay, session)
 							return
 						}
 						session = cmd
@@ -507,7 +507,7 @@ func (p *pipeRW) Close() error {
 //
 // When connected to a relay, it requests a UDP bridge so the standard
 // mosh client can connect through the relay's public UDP port.
-func (s *Server) handleMoshExec(ch ssh.Channel, cmd string, remoteAddr net.Addr, perms *ssh.Permissions, viaRelay bool) {
+func (s *Server) handleMoshExec(ch ssh.Channel, cmd string, remoteAddr net.Addr, perms *ssh.Permissions, viaRelay bool, session string) {
 	defer ch.Close()
 
 	portLow, portHigh := parseMoshPorts(cmd)
@@ -598,7 +598,10 @@ func (s *Server) handleMoshExec(ch ssh.Channel, cmd string, remoteAddr net.Addr,
 	}
 
 	// Initial readBuf: new-session message.
-	bridge.readBuf, _ = proto.MarshalMsg(proto.MsgNewSession, []byte("default"))
+	if session == "" {
+		session = "default"
+	}
+	bridge.readBuf, _ = proto.MarshalMsg(proto.MsgNewSession, []byte(session))
 
 	// Start mosh server with the pipe pair.
 	moshRW := &pipeRW{r: moshR, w: moshW}
