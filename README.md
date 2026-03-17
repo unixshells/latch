@@ -137,6 +137,10 @@ loop. Mosh through the relay uses a NAT bridge: latch requests a
 public UDP port from the relay over QUIC, and the relay forwards
 datagrams bidirectionally.
 
+## Requirements
+
+Go 1.22 or later. No runtime dependencies.
+
 ## License
 
 Copyright (c) 2026 [Unix Shells](https://unixshells.com). MIT license. See [LICENSE](LICENSE).
