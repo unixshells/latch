@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -94,6 +95,10 @@ func (p *PersistentConn) run() {
 		cancel()
 
 		if err != nil {
+			if strings.Contains(err.Error(), "auth rejected") {
+				fmt.Fprintf(os.Stderr, "relay: %v\n", err)
+				return
+			}
 			fmt.Fprintf(os.Stderr, "relay: %v (retry in %s)\n", err, backoff)
 			select {
 			case <-p.stop:
@@ -162,15 +167,9 @@ func (p *PersistentConn) PushSessions(data []byte) error {
 }
 
 func (p *PersistentConn) acceptLoop(conn *Conn) {
+	ctx := conn.Context()
 	for {
-		select {
-		case <-p.stop:
-			conn.Close()
-			return
-		default:
-		}
-
-		raw, err := conn.AcceptRawStream(context.Background())
+		raw, err := conn.AcceptRawStream(ctx)
 		if err != nil {
 			return
 		}

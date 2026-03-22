@@ -52,7 +52,8 @@ func TLSConfig(caFile string) (*tls.Config, error) {
 //  5. Server sends: [1] on success, closes stream on failure
 func Dial(ctx context.Context, addr string, user, device string, signer ssh.Signer, tlsCfg *tls.Config) (*Conn, error) {
 	quicCfg := &quic.Config{
-		KeepAlivePeriod: 30 * time.Second,
+		KeepAlivePeriod: 10 * time.Second,
+		MaxIdleTimeout:  30 * time.Second,
 	}
 
 	qconn, err := quic.DialAddr(ctx, addr, tlsCfg, quicCfg)
@@ -155,6 +156,12 @@ func (c *Conn) RemoteAddr() net.Addr {
 // OpenStream opens a new device-initiated QUIC stream to the relay.
 func (c *Conn) OpenStream(ctx context.Context) (*quic.Stream, error) {
 	return c.qconn.OpenStreamSync(ctx)
+}
+
+// Context returns the QUIC connection's context, which is cancelled
+// when the connection is closed or times out.
+func (c *Conn) Context() context.Context {
+	return c.qconn.Context()
 }
 
 // Close closes the QUIC connection.
