@@ -721,6 +721,14 @@ func (s *Server) attachSession(conn net.Conn, sess *mux.Session) {
 
 		case <-paneDied:
 			if sess.ReapDead() {
+				// If SSH/relay is active, respawn a window instead of dying.
+				// The session stays alive for the next SSH connection.
+				if s.remoteLn != nil || s.relayCon != nil || s.webLn != nil {
+					sess.NewWindow()
+					registerAllPanes()
+					sendRender()
+					continue
+				}
 				connMu.Lock()
 				proto.Encode(conn, proto.MsgSessionDead, nil)
 				connMu.Unlock()
