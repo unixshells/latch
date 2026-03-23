@@ -219,9 +219,100 @@ func main() {
 			relayUsage()
 		}
 
+	case "shells":
+		if len(os.Args) < 3 {
+			shellsUsage()
+		}
+		switch os.Args[2] {
+		case "list", "ls":
+			if err := client.ShellsList(config.Path()); err != nil {
+				fatal("%v", err)
+			}
+		case "create":
+			plan := "shell"
+			if len(os.Args) > 3 {
+				plan = os.Args[3]
+			}
+			if err := client.ShellsCreate(config.Path(), plan); err != nil {
+				fatal("%v", err)
+			}
+		case "destroy":
+			if len(os.Args) < 4 {
+				fatal("usage: latch shells destroy <shell-id>")
+			}
+			if err := client.ShellsDestroy(config.Path(), os.Args[3]); err != nil {
+				fatal("%v", err)
+			}
+		case "restart":
+			if len(os.Args) < 4 {
+				fatal("usage: latch shells restart <shell-id>")
+			}
+			if err := client.ShellsRestart(config.Path(), os.Args[3]); err != nil {
+				fatal("%v", err)
+			}
+		case "ssh":
+			if len(os.Args) < 4 {
+				fatal("usage: latch shells ssh <shell-id>")
+			}
+			if err := client.ShellsSSH(config.Path(), os.Args[3]); err != nil {
+				fatal("%v", err)
+			}
+		case "key":
+			if len(os.Args) < 4 {
+				shellsKeyUsage()
+			}
+			switch os.Args[3] {
+			case "add":
+				if len(os.Args) < 5 {
+					fatal("usage: latch shells key add <shell-id> [key-file]")
+				}
+				shellID := os.Args[4]
+				keyFile := ""
+				if len(os.Args) > 5 {
+					keyFile = os.Args[5]
+				}
+				if err := client.ShellsKeyAdd(config.Path(), shellID, keyFile); err != nil {
+					fatal("%v", err)
+				}
+			case "list", "ls":
+				if len(os.Args) < 5 {
+					fatal("usage: latch shells key list <shell-id>")
+				}
+				if err := client.ShellsKeyList(config.Path(), os.Args[4]); err != nil {
+					fatal("%v", err)
+				}
+			default:
+				shellsKeyUsage()
+			}
+		default:
+			shellsUsage()
+		}
+
 	default:
 		usage()
 	}
+}
+
+func shellsUsage() {
+	fmt.Fprintln(os.Stderr, "usage: latch shells <command>")
+	fmt.Fprintln(os.Stderr, "")
+	fmt.Fprintln(os.Stderr, "commands:")
+	fmt.Fprintln(os.Stderr, "  list             list your shells")
+	fmt.Fprintln(os.Stderr, "  create [plan]    create a new shell (shell, shell-pro, shell-max)")
+	fmt.Fprintln(os.Stderr, "  destroy <id>     destroy a shell (requires email verification)")
+	fmt.Fprintln(os.Stderr, "  restart <id>     restart a shell (requires email verification)")
+	fmt.Fprintln(os.Stderr, "  ssh <id>         connect to a shell via SSH")
+	fmt.Fprintln(os.Stderr, "  key <cmd>        manage SSH keys on a shell")
+	os.Exit(1)
+}
+
+func shellsKeyUsage() {
+	fmt.Fprintln(os.Stderr, "usage: latch shells key <command>")
+	fmt.Fprintln(os.Stderr, "")
+	fmt.Fprintln(os.Stderr, "commands:")
+	fmt.Fprintln(os.Stderr, "  add <id> [file]  add SSH key to shell (requires email verification)")
+	fmt.Fprintln(os.Stderr, "  list <id>        list SSH keys on a shell")
+	os.Exit(1)
 }
 
 func usage() {
