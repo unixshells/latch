@@ -87,6 +87,8 @@ func main() {
 		}
 		ensureServerWithRemote(cfg, sshAddr, webAddr)
 		if detached {
+			// Create the default session so it's ready for SSH/relay connections.
+			client.Attach(server.SocketPath(), name, true, cfg.PrefixKey)
 			return
 		}
 		if err := client.Attach(server.SocketPath(), name, true, cfg.PrefixKey); err != nil {
