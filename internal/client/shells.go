@@ -104,21 +104,17 @@ func ShellsCreate(cfgPath, plan string) error {
 	}
 
 	var result struct {
-		Shell struct {
-			ID   string `json:"id"`
-			Plan string `json:"plan"`
-		} `json:"shell"`
+		Message string `json:"message"`
 	}
 
-	if err := apiRequest("POST", "/api/provision-shell", map[string]string{
+	if err := apiRequest("POST", "/api/request-shell", map[string]string{
 		"username": cfg.RelayUser,
-		"plan":     plan,
 	}, &result); err != nil {
 		return err
 	}
 
-	fmt.Printf("shell created: %s (%s)\n", result.Shell.ID, result.Shell.Plan)
-	fmt.Printf("connect: ssh default@shell-%s.%s.unixshells.com\n", result.Shell.ID, cfg.RelayUser)
+	fmt.Println(result.Message)
+	fmt.Println("check your email and choose a plan to get started.")
 	return nil
 }
 
