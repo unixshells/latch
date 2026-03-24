@@ -231,11 +231,7 @@ func main() {
 				fatal("%v", err)
 			}
 		case "create":
-			plan := "shell"
-			if len(os.Args) > 3 {
-				plan = os.Args[3]
-			}
-			if err := client.ShellsCreate(config.Path(), plan); err != nil {
+			if err := client.ShellsCreate(config.Path()); err != nil {
 				fatal("%v", err)
 			}
 		case "destroy":
@@ -300,7 +296,7 @@ func shellsUsage() {
 	fmt.Fprintln(os.Stderr, "")
 	fmt.Fprintln(os.Stderr, "commands:")
 	fmt.Fprintln(os.Stderr, "  list             list your shells")
-	fmt.Fprintln(os.Stderr, "  create [plan]    create a new shell (shell, shell-pro, shell-max)")
+	fmt.Fprintln(os.Stderr, "  create           create a new shell")
 	fmt.Fprintln(os.Stderr, "  destroy <id>     destroy a shell (requires email verification)")
 	fmt.Fprintln(os.Stderr, "  restart <id>     restart a shell (requires email verification)")
 	fmt.Fprintln(os.Stderr, "  ssh <id>         connect to a shell via SSH")

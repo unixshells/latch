@@ -97,7 +97,7 @@ func ShellsList(cfgPath string) error {
 }
 
 // ShellsCreate creates a new shell.
-func ShellsCreate(cfgPath, plan string) error {
+func ShellsCreate(cfgPath string) error {
 	cfg, err := loadRelayConfig(cfgPath)
 	if err != nil {
 		return err
