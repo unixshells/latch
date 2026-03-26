@@ -282,11 +282,6 @@ func (s *Server) attachSession(conn net.Conn, sess *mux.Session) {
 			reject("session does not allow relay access")
 			return
 		}
-	case "web-relay":
-		if !sess.AllowRelay() || !sess.AllowWeb() {
-			reject("session does not allow web-relay access")
-			return
-		}
 	}
 
 	connID := s.tracker.register(meta)

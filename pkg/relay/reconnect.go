@@ -34,8 +34,6 @@ type PersistentConn struct {
 	// The stream has the type byte consumed; next bytes are [targetPort:2][ipLen:2][ipString].
 	UDPFunc func(*quic.Stream)
 
-	// WebFunc is called for each accepted web terminal stream.
-	WebFunc func(*quic.Stream)
 
 	// ConnectedFunc is called each time a relay connection is established.
 	ConnectedFunc func()
@@ -193,13 +191,6 @@ func (p *PersistentConn) acceptLoop(conn *Conn) {
 			// UDP forward stream.
 			if p.UDPFunc != nil {
 				go p.UDPFunc(raw)
-			} else {
-				raw.Close()
-			}
-		case 0x02:
-			// Web terminal stream.
-			if p.WebFunc != nil {
-				go p.WebFunc(raw)
 			} else {
 				raw.Close()
 			}

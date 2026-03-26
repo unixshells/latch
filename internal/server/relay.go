@@ -45,9 +45,6 @@ func (s *Server) StartRelay(addr, user, device, caFile string) error {
 	p.UDPFunc = func(raw *quic.Stream) {
 		s.handleUDPForwardStream(raw)
 	}
-	p.WebFunc = func(raw *quic.Stream) {
-		s.handleWebTerminalStream(raw)
-	}
 	p.ConnectedFunc = func() {
 		s.pushSessionsToRelay()
 	}
@@ -236,65 +233,3 @@ func (s *Server) handleUDPForwardStream(raw *quic.Stream) {
 	}
 }
 
-// handleWebTerminalStream handles a web terminal stream from the relay.
-// The stream carries raw proto messages [type:1][len:2][payload].
-// Stream header (after type byte 0x02): [ipLen:2][ipString]
-func (s *Server) handleWebTerminalStream(raw *quic.Stream) {
-	defer raw.Close()
-
-	if !s.access.Relay() {
-		return
-	}
-
-	// Read client IP header.
-	var ipLenBuf [2]byte
-	if _, err := io.ReadFull(raw, ipLenBuf[:]); err != nil {
-		return
-	}
-	ipLen := binary.BigEndian.Uint16(ipLenBuf[:])
-	if ipLen > 512 {
-		return
-	}
-	ipBuf := make([]byte, ipLen)
-	if _, err := io.ReadFull(raw, ipBuf); err != nil {
-		return
-	}
-
-	bridge := &streamBridge{
-		stream:     raw,
-		remoteAddr: string(ipBuf),
-	}
-
-	info := &ConnInfo{
-		Source:     "web-relay",
-		RemoteAddr: string(ipBuf),
-	}
-	s.setConnMeta(bridge, info)
-	s.handle(bridge)
-}
-
-// streamBridge wraps a QUIC stream as a net.Conn for proto message I/O.
-// The stream carries raw proto frames [type:1][len:2][payload].
-type streamBridge struct {
-	stream     *quic.Stream
-	remoteAddr string
-}
-
-func (b *streamBridge) Read(p []byte) (int, error)  { return b.stream.Read(p) }
-func (b *streamBridge) Write(p []byte) (int, error) { return b.stream.Write(p) }
-func (b *streamBridge) Close() error                { return b.stream.Close() }
-
-func (b *streamBridge) RemoteAddr() net.Addr {
-	addr, _ := net.ResolveTCPAddr("tcp", b.remoteAddr)
-	if addr == nil {
-		return &net.TCPAddr{}
-	}
-	return addr
-}
-
-func (b *streamBridge) LocalAddr() net.Addr                { return nil }
-func (b *streamBridge) SetDeadline(t time.Time) error      { return nil }
-func (b *streamBridge) SetReadDeadline(t time.Time) error  { return nil }
-func (b *streamBridge) SetWriteDeadline(t time.Time) error { return nil }
-
-var _ net.Conn = (*streamBridge)(nil)
