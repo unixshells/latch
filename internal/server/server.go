@@ -368,12 +368,26 @@ func (s *Server) attachSession(conn net.Conn, sess *mux.Session) {
 		connMu.Unlock()
 	}
 
+	// connDead is closed when a write to conn fails, stopping the render loop.
+	connDead := make(chan struct{})
+	var connDeadOnce sync.Once
+	markDead := func() {
+		connDeadOnce.Do(func() { close(connDead) })
+	}
+
 	sendRender := func() {
+		select {
+		case <-connDead:
+			return
+		default:
+		}
 		connMu.Lock()
 		if scrollActive {
 			frame := mux.RenderScroll(sess, cols, rows, scrollOffset)
 			if len(frame) > 0 {
-				sendOutput(conn, frame)
+				if sendOutput(conn, frame) != nil {
+					markDead()
+				}
 			}
 			connMu.Unlock()
 			return
@@ -403,7 +417,9 @@ func (s *Server) attachSession(conn net.Conn, sess *mux.Session) {
 			frame = append(frame, mux.RenderAdmin(state, cols, rows)...)
 		}
 		if len(frame) > 0 {
-			sendOutput(conn, frame)
+			if sendOutput(conn, frame) != nil {
+				markDead()
+			}
 		}
 		connMu.Unlock()
 	}
@@ -468,16 +484,27 @@ func (s *Server) attachSession(conn net.Conn, sess *mux.Session) {
 		s.shutdownIfEmpty()
 	}()
 
-	// Background render loop: coalesce notifications and re-render
+	// Background render loop: coalesce notifications and re-render.
+	// Exits when notify is closed (client disconnect) or connDead is closed (write failure).
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		for range notify {
+		for {
+			select {
+			case _, ok := <-notify:
+				if !ok {
+					return
+				}
+			case <-connDead:
+				return
+			}
 			time.Sleep(time.Duration(s.cfg.RenderCoalesceMs) * time.Millisecond)
 		drain:
 			for {
 				select {
 				case <-notify:
+				case <-connDead:
+					return
 				default:
 					break drain
 				}
@@ -897,17 +924,18 @@ func Running() bool {
 
 const maxChunkSize = 60 * 1024 // max proto payload chunk for output frames
 
-func sendOutput(conn net.Conn, data []byte) {
+func sendOutput(conn net.Conn, data []byte) error {
 	for len(data) > 0 {
 		chunk := data
 		if len(chunk) > maxChunkSize {
 			chunk = chunk[:maxChunkSize]
 		}
 		if err := proto.Encode(conn, proto.MsgOutput, chunk); err != nil {
-			return
+			return err
 		}
 		data = data[len(chunk):]
 	}
+	return nil
 }
 
 // notifyWriter triggers a notification when written to.
