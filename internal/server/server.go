@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/unixshells/latch/internal/config"
+	"github.com/unixshells/latch/internal/input"
 	"github.com/unixshells/latch/internal/mux"
 	"github.com/unixshells/latch/pkg/proto"
 	"github.com/unixshells/latch/pkg/relay"
@@ -310,6 +312,13 @@ func (s *Server) attachSession(conn net.Conn, sess *mux.Session) {
 		})
 	}()
 
+	// Server-side input processor for remote connections (SSH, relay, web, mobile).
+	// Local clients handle prefix keys client-side; remote ones need it here.
+	var inputProc *input.Processor
+	if meta.Source != "" && meta.Source != "local" {
+		inputProc = &input.Processor{PrefixKey: s.cfg.PrefixKey}
+	}
+
 	var cols, rows int = 80, 24
 	var hudVisible bool
 	var adminVisible bool
@@ -542,8 +551,106 @@ func (s *Server) attachSession(conn net.Conn, sess *mux.Session) {
 
 			switch msg.typ {
 			case proto.MsgInput:
-				if p := sess.Pane(); p != nil {
-					p.WriteInput(msg.payload)
+				// Remote connections (SSH, relay, web) need server-side prefix
+				// key processing since they don't have a latch client.
+				if inputProc != nil {
+					var buf bytes.Buffer
+					if err := inputProc.Process(&buf, msg.payload, len(msg.payload)); err != nil {
+						w.Close()
+						<-done
+						return
+					}
+					// Dispatch the generated proto messages.
+					for buf.Len() > 0 {
+						mtyp, mpay, merr := proto.Decode(&buf)
+						if merr != nil {
+							break
+						}
+						switch mtyp {
+						case proto.MsgInput:
+							if p := sess.Pane(); p != nil {
+								p.WriteInput(mpay)
+							}
+						case proto.MsgNewWindow:
+							sess.NewWindow()
+							registerAllPanes()
+						case proto.MsgCloseWindow:
+							sess.CloseActiveWindow()
+							registerAllPanes()
+						case proto.MsgSelectWin:
+							if len(mpay) > 0 {
+								if mpay[0] == proto.WindowNext {
+									sess.NextWindow()
+								} else if mpay[0] == proto.WindowPrev {
+									sess.PrevWindow()
+								} else {
+									sess.SelectWindow(int(mpay[0]))
+								}
+								registerAllPanes()
+							}
+						case proto.MsgDetach:
+							connMu.Lock()
+							proto.Encode(conn, proto.MsgDetached, nil)
+							connMu.Unlock()
+							w.Close()
+							<-done
+							return
+						case proto.MsgHUD:
+							connMu.Lock()
+							if len(mpay) > 0 && mpay[0] == 1 {
+								hudVisible = true
+							} else {
+								hudVisible = false
+							}
+							connMu.Unlock()
+						case proto.MsgScrollMode:
+							connMu.Lock()
+							if len(mpay) > 0 && mpay[0] == 1 {
+								scrollActive = true
+								scrollOffset = 0
+							} else {
+								scrollActive = false
+							}
+							connMu.Unlock()
+						case proto.MsgScrollAction:
+							if len(mpay) > 0 && scrollActive {
+								p := sess.Pane()
+								if p != nil {
+									connMu.Lock()
+									sbLen := p.ScrollbackLen()
+									switch mpay[0] {
+									case mux.ScrollUp:
+										scrollOffset++
+									case mux.ScrollDown:
+										if scrollOffset > 0 { scrollOffset-- }
+									case mux.ScrollHalfUp:
+										scrollOffset += rows / 2
+									case mux.ScrollHalfDown:
+										scrollOffset -= rows / 2
+										if scrollOffset < 0 { scrollOffset = 0 }
+									case mux.ScrollTop:
+										scrollOffset = sbLen
+									}
+									if scrollOffset > sbLen { scrollOffset = sbLen }
+									connMu.Unlock()
+								}
+							}
+						case proto.MsgAdminPanel:
+							connMu.Lock()
+							if len(mpay) > 0 && mpay[0] == 1 {
+								adminVisible = true
+							} else {
+								adminVisible = false
+							}
+							connMu.Unlock()
+							sendAdminState()
+						}
+					}
+					sendRender()
+				} else {
+					if p := sess.Pane(); p != nil {
+						p.WriteInput(msg.payload)
+					}
 				}
 				// Schedule a deferred render to catch application output
 				// that arrives after the notification coalesce window.
