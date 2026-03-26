@@ -579,11 +579,12 @@ func (s *Server) attachSession(conn net.Conn, sess *mux.Session) {
 							registerAllPanes()
 						case proto.MsgSelectWin:
 							if len(mpay) > 0 {
-								if mpay[0] == proto.WindowNext {
+								switch mpay[0] {
+								case proto.WindowNext:
 									sess.NextWindow()
-								} else if mpay[0] == proto.WindowPrev {
+								case proto.WindowPrev:
 									sess.PrevWindow()
-								} else {
+								default:
 									sess.SelectWindow(int(mpay[0]))
 								}
 								registerAllPanes()
