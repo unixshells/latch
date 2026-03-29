@@ -39,6 +39,7 @@ func main() {
 		fmt.Println("latch", version)
 
 	case "--server":
+		cfg.Persistent = true
 		var sshAddr, webAddr string
 		args := os.Args[2:]
 		for i := 0; i < len(args); i++ {

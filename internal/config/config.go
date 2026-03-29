@@ -24,6 +24,9 @@ type Config struct {
 	SSHAddr string // default SSH listen address (default: :2222)
 	WebAddr string // default web listen address (default: :7680)
 
+	// Server mode
+	Persistent bool // keep running even when all sessions/clients disconnect
+
 	// Relay
 	RelayHost    string // API server host (default: unixshells.com)
 	RelayNode    string // QUIC relay hostname (regional, e.g. us.unixshells.com)

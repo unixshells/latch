@@ -1005,6 +1005,9 @@ func (s *Server) pushSessionsToRelay() {
 // shutdownIfEmpty closes the listener if no sessions or clients remain,
 // causing Serve to return and the daemon to exit.
 func (s *Server) shutdownIfEmpty() {
+	if s.cfg.Persistent {
+		return
+	}
 	s.mu.Lock()
 	s.reap()
 	empty := len(s.sessions) == 0 && len(s.clients) == 0
