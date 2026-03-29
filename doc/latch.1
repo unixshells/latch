@@ -54,6 +54,27 @@ Disable the relay connection.
 .B relay ssh\-config
 Print an SSH config snippet for connecting through the relay.
 .TP
+.B shells list
+List your running shells.
+.TP
+.B shells create
+Provision a new shell. Sends an email with a checkout link.
+.TP
+.B shells destroy \fIshell-id\fR
+Destroy a shell (requires email confirmation).
+.TP
+.B shells restart \fIshell-id\fR
+Restart a shell (requires email confirmation). Home directory is preserved.
+.TP
+.B shells ssh \fIshell-id\fR
+SSH into a shell via the relay.
+.TP
+.B shells key add \fIshell-id\fR [\fIkey-file\fR]
+Add an SSH public key to a shell. Reads from the file or clipboard.
+.TP
+.B shells key list \fIshell-id\fR
+List SSH keys on a shell.
+.TP
 .B \-\-version
 Print version and exit.
 .SH KEY BINDINGS
