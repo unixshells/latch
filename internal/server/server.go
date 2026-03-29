@@ -101,6 +101,11 @@ func (s *Server) Serve() error {
 			if errors.Is(err, net.ErrClosed) {
 				return nil
 			}
+			if s.cfg.Persistent {
+				fmt.Fprintf(os.Stderr, "latch: accept error: %v (retrying)\n", err)
+				time.Sleep(time.Second)
+				continue
+			}
 			return err
 		}
 		go s.handle(conn)
