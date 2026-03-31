@@ -88,45 +88,60 @@ func (p *PersistentConn) run() {
 		default:
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		conn, err := Dial(ctx, p.addr, p.user, p.device, p.signer, p.tlsCfg)
-		cancel()
-
-		if err != nil {
-			if strings.Contains(err.Error(), "auth rejected") {
-				fmt.Fprintf(os.Stderr, "relay: %v\n", err)
-				return
-			}
-			fmt.Fprintf(os.Stderr, "relay: %v (retry in %s)\n", err, backoff)
-			select {
-			case <-p.stop:
-				return
-			case <-time.After(backoff):
-			}
-			backoff *= 2
-			if backoff > maxBackoff {
-				backoff = maxBackoff
-			}
-			continue
+		err := p.dialAndServe(&backoff, maxBackoff)
+		if err != nil && strings.Contains(err.Error(), "auth rejected") {
+			fmt.Fprintf(os.Stderr, "relay: %v\n", err)
+			return
 		}
-
-		// Connected — reset backoff.
-		backoff = time.Second
-
-		p.mu.Lock()
-		p.conn = conn
-		p.mu.Unlock()
-
-		if p.ConnectedFunc != nil {
-			p.ConnectedFunc()
-		}
-
-		p.acceptLoop(conn)
-
-		p.mu.Lock()
-		p.conn = nil
-		p.mu.Unlock()
 	}
+}
+
+// dialAndServe connects to the relay and runs the accept loop.
+// Wrapped in a separate function so panics in the QUIC library
+// are caught and converted to reconnect attempts.
+func (p *PersistentConn) dialAndServe(backoff *time.Duration, maxBackoff time.Duration) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Fprintf(os.Stderr, "relay: recovered from panic: %v (reconnecting)\n", r)
+			err = fmt.Errorf("panic: %v", r)
+		}
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	conn, dialErr := Dial(ctx, p.addr, p.user, p.device, p.signer, p.tlsCfg)
+	cancel()
+
+	if dialErr != nil {
+		fmt.Fprintf(os.Stderr, "relay: %v (retry in %s)\n", dialErr, *backoff)
+		select {
+		case <-p.stop:
+		case <-time.After(*backoff):
+		}
+		*backoff *= 2
+		if *backoff > maxBackoff {
+			*backoff = maxBackoff
+		}
+		return dialErr
+	}
+
+	// Connected — reset backoff.
+	*backoff = time.Second
+
+	p.mu.Lock()
+	p.conn = conn
+	p.mu.Unlock()
+
+	if p.ConnectedFunc != nil {
+		p.ConnectedFunc()
+	}
+
+	p.acceptLoop(conn)
+
+	p.mu.Lock()
+	p.conn = nil
+	p.mu.Unlock()
+
+	return nil
 }
 
 // OpenStream opens a device-initiated QUIC stream on the current connection.
