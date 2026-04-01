@@ -8,7 +8,7 @@ require (
 	github.com/mattn/go-runewidth v0.0.21
 	github.com/pkg/sftp v1.13.10
 	github.com/quic-go/quic-go v0.59.0
-	github.com/unixshells/mosh-go v0.5.0
+	github.com/unixshells/mosh-go v0.5.1
 	github.com/unixshells/vt-go v0.2.0
 	golang.org/x/crypto v0.49.0
 	golang.org/x/net v0.51.0
