@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/unixshells/latch/internal/config"
+	"github.com/unixshells/latch/pkg/transport"
 )
 
 const serverURL = "https://unixshells.com"
@@ -40,6 +41,14 @@ func apiRequest(method, path string, body interface{}, result interface{}) error
 	}
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
+	}
+
+	// Sign request with relay key for authentication.
+	signer, _, err := transport.LoadOrGenerateRelayKey(transport.RelayKeyPath())
+	if err == nil {
+		if token, err := signAuthToken(signer); err == nil {
+			req.Header.Set("Authorization", "Bearer "+token)
+		}
 	}
 
 	resp, err := (&http.Client{Timeout: 30 * time.Second}).Do(req)
