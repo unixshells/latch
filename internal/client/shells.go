@@ -214,7 +214,9 @@ func ShellsSSH(cfgPath, nameOrID string) error {
 	device := "shell-" + shellID
 	host := device + "." + cfg.RelayUser + ".unixshells.com"
 
-	cmd := exec.Command("ssh", "-J", "relay.unixshells.com", "default@"+host)
+	cmd := exec.Command("ssh",
+		"-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
+		"-J", "relay.unixshells.com", "default@"+host)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -231,7 +233,9 @@ func ShellsExec(cfgPath, nameOrID, command string) error {
 	device := "shell-" + shellID
 	host := device + "." + cfg.RelayUser + ".unixshells.com"
 
-	cmd := exec.Command("ssh", "-J", "relay.unixshells.com", "default@"+host, command)
+	cmd := exec.Command("ssh",
+		"-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
+		"-J", "relay.unixshells.com", "default@"+host, command)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -248,7 +252,9 @@ func ShellsSend(cfgPath, nameOrID, text string) error {
 	device := "shell-" + shellID
 	host := device + "." + cfg.RelayUser + ".unixshells.com"
 
-	cmd := exec.Command("ssh", "-J", "relay.unixshells.com", "default@"+host, "latch", "send", "default", text)
+	cmd := exec.Command("ssh",
+		"-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
+		"-J", "relay.unixshells.com", "default@"+host, "latch", "send", "default", text)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
@@ -264,7 +270,9 @@ func ShellsScreen(cfgPath, nameOrID string) error {
 	device := "shell-" + shellID
 	host := device + "." + cfg.RelayUser + ".unixshells.com"
 
-	cmd := exec.Command("ssh", "-J", "relay.unixshells.com", "default@"+host, "latch", "screen")
+	cmd := exec.Command("ssh",
+		"-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
+		"-J", "relay.unixshells.com", "default@"+host, "latch", "screen")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
