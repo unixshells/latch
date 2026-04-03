@@ -251,6 +251,35 @@ func (p *Pane) Screen() ScreenState {
 	}
 }
 
+// PlainText returns the visible screen as plain text with trailing
+// whitespace trimmed per line.
+func (p *Pane) PlainText() string {
+	scr := p.Screen()
+	var b []byte
+	for row := 0; row < scr.H; row++ {
+		off := row * scr.W
+		line := make([]byte, 0, scr.W)
+		for col := 0; col < scr.W; col++ {
+			c := scr.Cells[off+col]
+			if c.Content != "" && c.Width > 0 {
+				line = append(line, c.Content...)
+			} else if c.Width <= 0 && col > 0 && scr.Cells[off+col-1].Width > 1 {
+				// Skip continuation cell of wide character.
+				continue
+			} else {
+				line = append(line, ' ')
+			}
+		}
+		// Trim trailing spaces.
+		for len(line) > 0 && line[len(line)-1] == ' ' {
+			line = line[:len(line)-1]
+		}
+		b = append(b, line...)
+		b = append(b, '\n')
+	}
+	return string(b)
+}
+
 // ScrollbackLen returns the number of lines in the scrollback buffer.
 func (p *Pane) ScrollbackLen() int {
 	p.mu.Lock()

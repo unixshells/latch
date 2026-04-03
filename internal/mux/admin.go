@@ -15,6 +15,9 @@ type AdminState struct {
 	SessionAllowWeb   bool
 	SessionAllowRelay bool
 
+	APIEnabled      bool
+	SessionAllowAPI bool
+
 	// RelayConfigured is true when the user has a relay account set up.
 	RelayConfigured bool
 }
@@ -42,6 +45,9 @@ const (
 	AdminSessionToggleSSH   byte = 0x07
 	AdminSessionToggleWeb   byte = 0x08
 	AdminSessionToggleRelay byte = 0x09
+
+	AdminToggleAPI        byte = 0x0A
+	AdminSessionToggleAPI byte = 0x0B
 )
 
 // RenderAdmin draws a centered admin panel overlay.
@@ -67,12 +73,12 @@ func RenderAdmin(state *AdminState, cols, rows int) []byte {
 	if pw > 72 {
 		pw = 72
 	}
-	// Count toggle rows: ssh + web always, relay only if configured.
-	globalToggles := 2
-	sessionToggles := 2
+	// Count toggle rows: ssh + web + api always, relay only if configured.
+	globalToggles := 3
+	sessionToggles := 3
 	if state.RelayConfigured {
-		globalToggles = 3
-		sessionToggles = 3
+		globalToggles = 4
+		sessionToggles = 4
 	}
 	// borders(2) + header(1) + sep(1) + globalToggles + sep(1) + sessHeader(1)
 	// + sessionToggles + sep(1) + connHeader(1) + footer(1) = 9 + toggles*2
@@ -228,6 +234,25 @@ func RenderAdmin(state *AdminState, cols, rows int) []byte {
 		row++
 	}
 
+	// API toggle.
+	var apiLine []byte
+	apiLine = append(apiLine, " api   "...)
+	if state.APIEnabled {
+		apiLine = append(apiLine, grn...)
+		apiLine = append(apiLine, "● on "...)
+	} else {
+		apiLine = append(apiLine, red...)
+		apiLine = append(apiLine, "○ off"...)
+	}
+	apiLine = append(apiLine, dim...)
+	apiLine = append(apiLine, "  "...)
+	apiLine = append(apiLine, k...)
+	apiLine = append(apiLine, "7"...)
+	apiLine = append(apiLine, dim...)
+	apiLine = append(apiLine, " toggle"...)
+	line(row, apiLine)
+	row++
+
 	hbar(row)
 	row++
 
@@ -267,6 +292,7 @@ func RenderAdmin(state *AdminState, cols, rows int) []byte {
 	if state.RelayConfigured {
 		sessToggle("relay", state.SessionAllowRelay, "6")
 	}
+	sessToggle("api", state.SessionAllowAPI, "8")
 
 	hbar(row)
 	row++
@@ -395,7 +421,8 @@ func EncodeAdminState(s *AdminState) []byte {
 	buf = append(buf, b(s.SSHEnabled), b(s.WebEnabled), b(s.RelayEnabled),
 		b(s.SessionAllowSSH), b(s.SessionAllowWeb), b(s.SessionAllowRelay),
 		b(s.RelayConfigured),
-		byte(s.Selected), byte(len(s.Conns)))
+		byte(s.Selected), byte(len(s.Conns)),
+		b(s.APIEnabled), b(s.SessionAllowAPI))
 	for _, c := range s.Conns {
 		var id [8]byte
 		binary.BigEndian.PutUint64(id[:], c.ID)
@@ -411,7 +438,7 @@ func EncodeAdminState(s *AdminState) []byte {
 
 // DecodeAdminState deserializes AdminState from proto transport.
 func DecodeAdminState(data []byte) *AdminState {
-	if len(data) < 9 {
+	if len(data) < 11 {
 		return nil
 	}
 	s := &AdminState{
@@ -425,7 +452,9 @@ func DecodeAdminState(data []byte) *AdminState {
 		Selected:          int(data[7]),
 	}
 	n := int(data[8])
-	data = data[9:]
+	s.APIEnabled = data[9] != 0
+	s.SessionAllowAPI = data[10] != 0
+	data = data[11:]
 	for i := 0; i < n; i++ {
 		if len(data) < 8 {
 			break

@@ -34,6 +34,8 @@ type Config struct {
 	RelayDevice  string // device name (default: OS hostname)
 	RelayEnabled bool   // whether relay is enabled
 	RelayCAFile  string // CA certificate file for relay TLS verification
+
+	APIEnabled bool // whether API access (send/screen) is enabled
 }
 
 // Default returns a Config with default values.
@@ -46,6 +48,7 @@ func Default() *Config {
 		RenderCoalesceMs: 2,
 		SSHAddr:          ":2222",
 		WebAddr:          ":7680",
+		APIEnabled:       true,
 	}
 }
 
@@ -164,6 +167,15 @@ func (c *Config) set(key, val string) error {
 			c.RelayEnabled = false
 		default:
 			return fmt.Errorf("invalid relay-enabled value: %s (true/false/yes/no/on/off/1/0)", val)
+		}
+	case "api-enabled":
+		switch val {
+		case "true", "yes", "on", "1":
+			c.APIEnabled = true
+		case "false", "no", "off", "0":
+			c.APIEnabled = false
+		default:
+			return fmt.Errorf("invalid api-enabled value: %s (true/false/yes/no/on/off/1/0)", val)
 		}
 	default:
 		return fmt.Errorf("unknown key: %s", key)

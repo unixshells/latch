@@ -60,6 +60,10 @@ func (p *Processor) Process(w io.Writer, buf []byte, n int) error {
 				proto.Encode(w, proto.MsgAdminAction, mux.EncodeAdminAction(mux.AdminSessionToggleWeb, 0))
 			case '6':
 				proto.Encode(w, proto.MsgAdminAction, mux.EncodeAdminAction(mux.AdminSessionToggleRelay, 0))
+			case '7':
+				proto.Encode(w, proto.MsgAdminAction, mux.EncodeAdminAction(mux.AdminToggleAPI, 0))
+			case '8':
+				proto.Encode(w, proto.MsgAdminAction, mux.EncodeAdminAction(mux.AdminSessionToggleAPI, 0))
 			}
 			continue
 		}

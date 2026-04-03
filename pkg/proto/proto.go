@@ -27,6 +27,8 @@ const (
 	MsgEnableWeb    byte = 0x18 // client → server: start web listener (payload: addr)
 	MsgScrollMode   byte = 0x19 // client → server: enter/exit scroll mode (payload: [0/1])
 	MsgScrollAction byte = 0x1A // client → server: scroll action (payload: [action])
+	MsgSendInput    byte = 0x1B // client → server: inject input (payload: "session\x00text")
+	MsgReadScreen   byte = 0x1C // client → server: read screen (payload: session name)
 )
 
 // Message types: server → client
@@ -37,6 +39,7 @@ const (
 	MsgDetached    byte = 0x83
 	MsgSessionDead byte = 0x84
 	MsgAdminState  byte = 0x85 // server → client: admin panel state
+	MsgScreenData  byte = 0x86 // server → client: plain text screen content
 )
 
 // Window select special values

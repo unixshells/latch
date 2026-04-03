@@ -25,6 +25,7 @@ type Session struct {
 	allowSSH   bool
 	allowWeb   bool
 	allowRelay bool
+	allowAPI   bool
 }
 
 // ValidateSessionName checks that a session name is non-empty, printable
@@ -63,6 +64,7 @@ func NewSession(name string, cols, rows int, shell string) (*Session, error) {
 		allowSSH:   true,
 		allowWeb:   true,
 		allowRelay: true,
+		allowAPI:   true,
 	}
 
 	win, err := NewWindow(0, cols, rows, shell)
@@ -267,6 +269,20 @@ func (s *Session) SetAllowWeb(v bool) {
 func (s *Session) SetAllowRelay(v bool) {
 	s.mu.Lock()
 	s.allowRelay = v
+	s.mu.Unlock()
+}
+
+// AllowAPI returns whether API access (send/screen) is permitted for this session.
+func (s *Session) AllowAPI() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.allowAPI
+}
+
+// SetAllowAPI toggles API access for this session.
+func (s *Session) SetAllowAPI(v bool) {
+	s.mu.Lock()
+	s.allowAPI = v
 	s.mu.Unlock()
 }
 

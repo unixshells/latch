@@ -4,9 +4,11 @@ import "testing"
 
 func TestAdminStateRoundtrip(t *testing.T) {
 	state := &AdminState{
-		SSHEnabled:   true,
-		RelayEnabled: false,
-		Selected:     1,
+		SSHEnabled:      true,
+		RelayEnabled:    false,
+		APIEnabled:      true,
+		SessionAllowAPI: true,
+		Selected:        1,
 		Conns: []AdminConn{
 			{ID: 42, Source: "ssh", RemoteAddr: "1.2.3.4:22", KeyComment: "friend@laptop", Session: "default", Duration: "5m"},
 			{ID: 99, Source: "relay", RemoteAddr: "5.6.7.8:0", KeyComment: "", Session: "work", Duration: "12s"},
@@ -24,6 +26,12 @@ func TestAdminStateRoundtrip(t *testing.T) {
 	}
 	if got.RelayEnabled != false {
 		t.Fatal("relay should be disabled")
+	}
+	if got.APIEnabled != true {
+		t.Fatal("api should be enabled")
+	}
+	if got.SessionAllowAPI != true {
+		t.Fatal("session api should be allowed")
 	}
 	if got.Selected != 1 {
 		t.Fatalf("selected = %d, want 1", got.Selected)

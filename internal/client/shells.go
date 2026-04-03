@@ -64,34 +64,70 @@ func apiRequest(method, path string, body interface{}, result interface{}) error
 	return nil
 }
 
+type shellInfo struct {
+	ID       string `json:"id"`
+	Plan     string `json:"plan"`
+	State    string `json:"state"`
+	MemMB    int    `json:"mem_mb"`
+	Vcpus    int    `json:"vcpus"`
+	Nickname string `json:"nickname"`
+}
+
+// listShells fetches the user's shells from the API.
+func listShells(cfgPath string) ([]shellInfo, *config.Config, error) {
+	cfg, err := loadRelayConfig(cfgPath)
+	if err != nil {
+		return nil, nil, err
+	}
+	var result struct {
+		Shells []shellInfo `json:"shells"`
+	}
+	if err := apiRequest("GET", "/api/shells?username="+cfg.RelayUser, nil, &result); err != nil {
+		return nil, nil, err
+	}
+	return result.Shells, cfg, nil
+}
+
+// resolveShellID resolves a nickname or ID to a shell ID.
+func resolveShellID(cfgPath, nameOrID string) (string, *config.Config, error) {
+	shells, cfg, err := listShells(cfgPath)
+	if err != nil {
+		return "", nil, err
+	}
+	// Try exact ID match first.
+	for _, s := range shells {
+		if s.ID == nameOrID {
+			return s.ID, cfg, nil
+		}
+	}
+	// Try nickname match.
+	for _, s := range shells {
+		if s.Nickname != "" && s.Nickname == nameOrID {
+			return s.ID, cfg, nil
+		}
+	}
+	// Fall through — use as-is (might be a valid ID the API didn't return).
+	return nameOrID, cfg, nil
+}
+
 // ShellsList lists the user's shells.
 func ShellsList(cfgPath string) error {
-	cfg, err := loadRelayConfig(cfgPath)
+	shells, _, err := listShells(cfgPath)
 	if err != nil {
 		return err
 	}
 
-	var result struct {
-		Shells []struct {
-			ID    string `json:"id"`
-			Plan  string `json:"plan"`
-			State string `json:"state"`
-			MemMB int    `json:"mem_mb"`
-			Vcpus int    `json:"vcpus"`
-		} `json:"shells"`
-	}
-
-	if err := apiRequest("GET", "/api/shells?username="+cfg.RelayUser, nil, &result); err != nil {
-		return err
-	}
-
-	if len(result.Shells) == 0 {
+	if len(shells) == 0 {
 		fmt.Println("no shells")
 		return nil
 	}
 
-	for _, s := range result.Shells {
-		fmt.Printf("%-14s %-10s %-8s %dMB %dvCPU\n", s.ID, s.Plan, s.State, s.MemMB, s.Vcpus)
+	for _, s := range shells {
+		name := s.Nickname
+		if name == "" {
+			name = s.ID
+		}
+		fmt.Printf("%-14s %-10s %-8s %dMB %dvCPU\n", name, s.Plan, s.State, s.MemMB, s.Vcpus)
 	}
 	return nil
 }
@@ -119,8 +155,8 @@ func ShellsCreate(cfgPath string) error {
 }
 
 // ShellsDestroy initiates shell destruction (sends verification email).
-func ShellsDestroy(cfgPath, shellID string) error {
-	_, err := loadRelayConfig(cfgPath)
+func ShellsDestroy(cfgPath, nameOrID string) error {
+	shellID, _, err := resolveShellID(cfgPath, nameOrID)
 	if err != nil {
 		return err
 	}
@@ -140,8 +176,8 @@ func ShellsDestroy(cfgPath, shellID string) error {
 }
 
 // ShellsRestart initiates shell restart (sends verification email).
-func ShellsRestart(cfgPath, shellID string) error {
-	_, err := loadRelayConfig(cfgPath)
+func ShellsRestart(cfgPath, nameOrID string) error {
+	shellID, _, err := resolveShellID(cfgPath, nameOrID)
 	if err != nil {
 		return err
 	}
@@ -160,8 +196,8 @@ func ShellsRestart(cfgPath, shellID string) error {
 }
 
 // ShellsSSH connects to a shell via SSH through the relay.
-func ShellsSSH(cfgPath, shellID string) error {
-	cfg, err := loadRelayConfig(cfgPath)
+func ShellsSSH(cfgPath, nameOrID string) error {
+	shellID, cfg, err := resolveShellID(cfgPath, nameOrID)
 	if err != nil {
 		return err
 	}
@@ -176,9 +212,58 @@ func ShellsSSH(cfgPath, shellID string) error {
 	return cmd.Run()
 }
 
+// ShellsExec runs a command on a shell via SSH through the relay.
+func ShellsExec(cfgPath, nameOrID, command string) error {
+	shellID, cfg, err := resolveShellID(cfgPath, nameOrID)
+	if err != nil {
+		return err
+	}
+
+	device := "shell-" + shellID
+	host := device + "." + cfg.RelayUser + ".unixshells.com"
+
+	cmd := exec.Command("ssh", "-J", "relay.unixshells.com", "default@"+host, command)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+// ShellsSend injects text into a session on a shell via SSH through the relay.
+func ShellsSend(cfgPath, nameOrID, text string) error {
+	shellID, cfg, err := resolveShellID(cfgPath, nameOrID)
+	if err != nil {
+		return err
+	}
+
+	device := "shell-" + shellID
+	host := device + "." + cfg.RelayUser + ".unixshells.com"
+
+	cmd := exec.Command("ssh", "-J", "relay.unixshells.com", "default@"+host, "latch", "send", "default", text)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+// ShellsScreen reads the terminal screen from a shell via SSH through the relay.
+func ShellsScreen(cfgPath, nameOrID string) error {
+	shellID, cfg, err := resolveShellID(cfgPath, nameOrID)
+	if err != nil {
+		return err
+	}
+
+	device := "shell-" + shellID
+	host := device + "." + cfg.RelayUser + ".unixshells.com"
+
+	cmd := exec.Command("ssh", "-J", "relay.unixshells.com", "default@"+host, "latch", "screen")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
 // ShellsKeyAdd adds an SSH key to a shell (sends verification email).
-func ShellsKeyAdd(cfgPath, shellID, keyFile string) error {
-	_, err := loadRelayConfig(cfgPath)
+func ShellsKeyAdd(cfgPath, nameOrID, keyFile string) error {
+	shellID, _, err := resolveShellID(cfgPath, nameOrID)
 	if err != nil {
 		return err
 	}
@@ -226,8 +311,8 @@ func ShellsKeyAdd(cfgPath, shellID, keyFile string) error {
 }
 
 // ShellsKeyList lists SSH keys on a shell.
-func ShellsKeyList(cfgPath, shellID string) error {
-	_, err := loadRelayConfig(cfgPath)
+func ShellsKeyList(cfgPath, nameOrID string) error {
+	shellID, _, err := resolveShellID(cfgPath, nameOrID)
 	if err != nil {
 		return err
 	}

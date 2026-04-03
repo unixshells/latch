@@ -204,6 +204,49 @@ func EnableWeb(sockPath, addr string) error {
 	return nil
 }
 
+// SendInput injects text into a named session's PTY.
+func SendInput(sockPath, session, text string) error {
+	conn, err := net.Dial("unix", sockPath)
+	if err != nil {
+		return fmt.Errorf("connect: %w", err)
+	}
+	defer conn.Close()
+
+	payload := []byte(session + "\x00" + text)
+	if err := proto.Encode(conn, proto.MsgSendInput, payload); err != nil {
+		return err
+	}
+	typ, p, err := proto.Decode(conn)
+	if err != nil {
+		return err
+	}
+	if typ == proto.MsgError {
+		return fmt.Errorf("server: %s", p)
+	}
+	return nil
+}
+
+// ReadScreen returns the plain text content of a session's screen.
+func ReadScreen(sockPath, session string) (string, error) {
+	conn, err := net.Dial("unix", sockPath)
+	if err != nil {
+		return "", fmt.Errorf("connect: %w", err)
+	}
+	defer conn.Close()
+
+	if err := proto.Encode(conn, proto.MsgReadScreen, []byte(session)); err != nil {
+		return "", err
+	}
+	typ, payload, err := proto.Decode(conn)
+	if err != nil {
+		return "", err
+	}
+	if typ == proto.MsgError {
+		return "", fmt.Errorf("server: %s", payload)
+	}
+	return string(payload), nil
+}
+
 // Kill sends a kill command.
 func Kill(sockPath string, name string) error {
 	conn, err := net.Dial("unix", sockPath)

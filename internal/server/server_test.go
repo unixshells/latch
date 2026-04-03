@@ -16,7 +16,9 @@ func testServer(t *testing.T) (*Server, string) {
 	t.Helper()
 	dir := t.TempDir()
 	sock := filepath.Join(dir, "sock")
-	s := &Server{sockPath: sock, cfg: config.Default(), limiter: newConnLimiter(10), tracker: newConnTracker(), access: newAccessState(), connMeta: make(map[net.Conn]*ConnInfo)}
+	cfg := config.Default()
+	s := &Server{sockPath: sock, cfg: cfg, limiter: newConnLimiter(10), tracker: newConnTracker(), access: newAccessState(), connMeta: make(map[net.Conn]*ConnInfo)}
+	s.access.SetAPI(cfg.APIEnabled)
 	if err := s.Listen(); err != nil {
 		t.Fatal(err)
 	}
@@ -200,5 +202,135 @@ func TestEnableWeb(t *testing.T) {
 	}
 	if !strings.Contains(string(payload2), "already listening") {
 		t.Fatalf("expected already listening, got: %s", payload2)
+	}
+}
+
+// createDetachedSession creates a session and detaches, returning once ready.
+func createDetachedSession(t *testing.T, sock, name string) {
+	t.Helper()
+	conn := dial(t, sock)
+	proto.Encode(conn, proto.MsgNewSession, []byte(name))
+	time.Sleep(300 * time.Millisecond)
+	proto.Encode(conn, proto.MsgDetach, nil)
+	for {
+		typ, _, err := proto.Decode(conn)
+		if err != nil || typ == proto.MsgDetached {
+			break
+		}
+	}
+	conn.Close()
+}
+
+func TestSendInput(t *testing.T) {
+	_, sock := testServer(t)
+	createDetachedSession(t, sock, "sendtest")
+
+	conn := dial(t, sock)
+	defer conn.Close()
+	proto.Encode(conn, proto.MsgSendInput, []byte("sendtest\x00echo hi\n"))
+	typ, payload, err := proto.Decode(conn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if typ == proto.MsgError {
+		t.Fatalf("send failed: %s", payload)
+	}
+	if string(payload) != "ok" {
+		t.Fatalf("payload = %q, want ok", payload)
+	}
+}
+
+func TestSendInputNoSession(t *testing.T) {
+	_, sock := testServer(t)
+
+	conn := dial(t, sock)
+	defer conn.Close()
+	proto.Encode(conn, proto.MsgSendInput, []byte("nope\x00hello"))
+	typ, _, err := proto.Decode(conn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if typ != proto.MsgError {
+		t.Fatalf("type = %x, want MsgError", typ)
+	}
+}
+
+func TestReadScreen(t *testing.T) {
+	_, sock := testServer(t)
+	createDetachedSession(t, sock, "screentest")
+
+	conn := dial(t, sock)
+	defer conn.Close()
+	proto.Encode(conn, proto.MsgReadScreen, []byte("screentest"))
+	typ, payload, err := proto.Decode(conn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if typ == proto.MsgError {
+		t.Fatalf("screen failed: %s", payload)
+	}
+	if typ != proto.MsgScreenData {
+		t.Fatalf("type = %x, want MsgScreenData", typ)
+	}
+	if len(payload) == 0 {
+		t.Fatal("screen returned empty")
+	}
+}
+
+func TestReadScreenNoSession(t *testing.T) {
+	_, sock := testServer(t)
+
+	conn := dial(t, sock)
+	defer conn.Close()
+	proto.Encode(conn, proto.MsgReadScreen, []byte("nope"))
+	typ, _, err := proto.Decode(conn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if typ != proto.MsgError {
+		t.Fatalf("type = %x, want MsgError", typ)
+	}
+}
+
+func TestAPIAccessGating(t *testing.T) {
+	s, sock := testServer(t)
+	createDetachedSession(t, sock, "gatetest")
+
+	// Disable API access.
+	s.access.SetAPI(false)
+
+	conn := dial(t, sock)
+	defer conn.Close()
+	proto.Encode(conn, proto.MsgSendInput, []byte("gatetest\x00hello"))
+	typ, payload, err := proto.Decode(conn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if typ != proto.MsgError {
+		t.Fatalf("type = %x, want MsgError", typ)
+	}
+	if !strings.Contains(string(payload), "api access disabled") {
+		t.Fatalf("error = %q", payload)
+	}
+
+	// Screen should also be blocked.
+	proto.Encode(conn, proto.MsgReadScreen, []byte("gatetest"))
+	typ, payload, err = proto.Decode(conn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if typ != proto.MsgError {
+		t.Fatalf("type = %x, want MsgError", typ)
+	}
+
+	// Re-enable and verify it works.
+	s.access.SetAPI(true)
+	proto.Encode(conn, proto.MsgReadScreen, []byte("gatetest"))
+	typ, _, err = proto.Decode(conn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if typ != proto.MsgScreenData {
+		t.Fatalf("type = %x, want MsgScreenData", typ)
 	}
 }

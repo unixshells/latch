@@ -2,12 +2,13 @@ package server
 
 import "sync"
 
-// accessState controls whether SSH, web, and relay connections are accepted.
+// accessState controls whether SSH, web, relay, and API connections are accepted.
 type accessState struct {
 	mu           sync.RWMutex
 	sshEnabled   bool
 	webEnabled   bool
 	relayEnabled bool
+	apiEnabled   bool
 }
 
 func newAccessState() *accessState {
@@ -48,5 +49,17 @@ func (a *accessState) SetWeb(enabled bool) {
 func (a *accessState) SetRelay(enabled bool) {
 	a.mu.Lock()
 	a.relayEnabled = enabled
+	a.mu.Unlock()
+}
+
+func (a *accessState) API() bool {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.apiEnabled
+}
+
+func (a *accessState) SetAPI(enabled bool) {
+	a.mu.Lock()
+	a.apiEnabled = enabled
 	a.mu.Unlock()
 }

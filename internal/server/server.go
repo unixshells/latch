@@ -55,7 +55,7 @@ func New(cfg *config.Config) *Server {
 	if cfg == nil {
 		cfg = config.Default()
 	}
-	return &Server{
+	s := &Server{
 		sockPath: SocketPath(),
 		cfg:      cfg,
 		limiter:  newConnLimiter(10),
@@ -64,6 +64,8 @@ func New(cfg *config.Config) *Server {
 		audit:    newAuditLog(),
 		connMeta: make(map[net.Conn]*ConnInfo),
 	}
+	s.access.SetAPI(cfg.APIEnabled)
+	return s
 }
 
 // Listen creates the unix socket and starts listening.
@@ -186,6 +188,10 @@ func (s *Server) handle(conn net.Conn) {
 			s.handleEnableSSH(conn, string(payload))
 		case proto.MsgEnableWeb:
 			s.handleEnableWeb(conn, string(payload))
+		case proto.MsgSendInput:
+			s.handleSendInput(conn, payload)
+		case proto.MsgReadScreen:
+			s.handleReadScreen(conn, string(payload))
 		default:
 			proto.Encode(conn, proto.MsgError, []byte("unknown command"))
 		}
@@ -345,6 +351,8 @@ func (s *Server) attachSession(conn net.Conn, sess *mux.Session) {
 			SessionAllowSSH:   sess.AllowSSH(),
 			SessionAllowWeb:   sess.AllowWeb(),
 			SessionAllowRelay: sess.AllowRelay(),
+			APIEnabled:        s.access.API(),
+			SessionAllowAPI:   sess.AllowAPI(),
 			RelayConfigured:   relayCfg,
 			Selected:          adminSelected,
 		}
@@ -838,6 +846,10 @@ func (s *Server) attachSession(conn net.Conn, sess *mux.Session) {
 						sess.SetAllowWeb(!sess.AllowWeb())
 					case mux.AdminSessionToggleRelay:
 						sess.SetAllowRelay(!sess.AllowRelay())
+					case mux.AdminToggleAPI:
+						s.access.SetAPI(!s.access.API())
+					case mux.AdminSessionToggleAPI:
+						sess.SetAllowAPI(!sess.AllowAPI())
 					case mux.AdminKick:
 						s.tracker.kick(cid)
 					case mux.AdminNavUp:
@@ -912,6 +924,77 @@ func (s *Server) handleKill(conn net.Conn, name string) {
 		s.pushSessionsToRelay()
 	} else {
 		proto.Encode(conn, proto.MsgError, []byte(fmt.Sprintf("no session: %s", name)))
+	}
+}
+
+func (s *Server) handleSendInput(conn net.Conn, payload []byte) {
+	if !s.access.API() {
+		proto.Encode(conn, proto.MsgError, []byte("api access disabled"))
+		return
+	}
+	i := bytes.IndexByte(payload, 0)
+	if i < 0 {
+		proto.Encode(conn, proto.MsgError, []byte("invalid payload: expected session\\x00text"))
+		return
+	}
+	name := string(payload[:i])
+	text := payload[i+1:]
+
+	s.mu.Lock()
+	var target *mux.Session
+	for _, sess := range s.sessions {
+		if sess.Name == name && !sess.Dead() {
+			target = sess
+			break
+		}
+	}
+	s.mu.Unlock()
+
+	if target == nil {
+		proto.Encode(conn, proto.MsgError, []byte(fmt.Sprintf("no session: %s", name)))
+		return
+	}
+	if !target.AllowAPI() {
+		proto.Encode(conn, proto.MsgError, []byte("session does not allow api access"))
+		return
+	}
+	if p := target.Pane(); p != nil {
+		p.WriteInput(text)
+	}
+	proto.Encode(conn, proto.MsgSessionList, []byte("ok"))
+}
+
+func (s *Server) handleReadScreen(conn net.Conn, name string) {
+	if !s.access.API() {
+		proto.Encode(conn, proto.MsgError, []byte("api access disabled"))
+		return
+	}
+	if name == "" {
+		name = "default"
+	}
+
+	s.mu.Lock()
+	var target *mux.Session
+	for _, sess := range s.sessions {
+		if sess.Name == name && !sess.Dead() {
+			target = sess
+			break
+		}
+	}
+	s.mu.Unlock()
+
+	if target == nil {
+		proto.Encode(conn, proto.MsgError, []byte(fmt.Sprintf("no session: %s", name)))
+		return
+	}
+	if !target.AllowAPI() {
+		proto.Encode(conn, proto.MsgError, []byte("session does not allow api access"))
+		return
+	}
+	if p := target.Pane(); p != nil {
+		proto.Encode(conn, proto.MsgScreenData, []byte(p.PlainText()))
+	} else {
+		proto.Encode(conn, proto.MsgScreenData, nil)
 	}
 }
 

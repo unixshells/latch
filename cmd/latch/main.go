@@ -131,6 +131,31 @@ func main() {
 			fatal("%v", err)
 		}
 
+	case "send":
+		if len(os.Args) < 4 {
+			fatal("usage: latch send <session> <text>")
+		}
+		if !server.Running() {
+			fatal("no server running")
+		}
+		if err := client.SendInput(server.SocketPath(), os.Args[2], os.Args[3]); err != nil {
+			fatal("%v", err)
+		}
+
+	case "screen":
+		name := "default"
+		if len(os.Args) > 2 {
+			name = os.Args[2]
+		}
+		if !server.Running() {
+			fatal("no server running")
+		}
+		text, err := client.ReadScreen(server.SocketPath(), name)
+		if err != nil {
+			fatal("%v", err)
+		}
+		fmt.Print(text)
+
 	case "auth":
 		if len(os.Args) < 3 {
 			authUsage()
@@ -256,6 +281,27 @@ func main() {
 			if err := client.ShellsSSH(config.Path(), os.Args[3]); err != nil {
 				fatal("%v", err)
 			}
+		case "exec":
+			if len(os.Args) < 5 {
+				fatal("usage: latch shells exec <shell-id> <command>")
+			}
+			if err := client.ShellsExec(config.Path(), os.Args[3], os.Args[4]); err != nil {
+				fatal("%v", err)
+			}
+		case "send":
+			if len(os.Args) < 5 {
+				fatal("usage: latch shells send <shell-id> <text>")
+			}
+			if err := client.ShellsSend(config.Path(), os.Args[3], os.Args[4]); err != nil {
+				fatal("%v", err)
+			}
+		case "screen":
+			if len(os.Args) < 4 {
+				fatal("usage: latch shells screen <shell-id>")
+			}
+			if err := client.ShellsScreen(config.Path(), os.Args[3]); err != nil {
+				fatal("%v", err)
+			}
 		case "key":
 			if len(os.Args) < 4 {
 				shellsKeyUsage()
@@ -301,6 +347,9 @@ func shellsUsage() {
 	fmt.Fprintln(os.Stderr, "  destroy <id>     destroy a shell (requires email verification)")
 	fmt.Fprintln(os.Stderr, "  restart <id>     restart a shell (requires email verification)")
 	fmt.Fprintln(os.Stderr, "  ssh <id>         connect to a shell via SSH")
+	fmt.Fprintln(os.Stderr, "  exec <id> <cmd>  run a command on a shell")
+	fmt.Fprintln(os.Stderr, "  send <id> <text> send input to a shell's session")
+	fmt.Fprintln(os.Stderr, "  screen <id>      read a shell's terminal screen")
 	fmt.Fprintln(os.Stderr, "  key <cmd>        manage SSH keys on a shell")
 	os.Exit(1)
 }
@@ -326,6 +375,8 @@ commands:
   attach [name]            attach to an existing session
   ls                       list sessions
   kill <name>              kill a session
+  send <session> <text>    send input to a session
+  screen [session]         read a session's terminal screen
   auth <cmd>              manage authorized SSH keys
   relay <cmd>              relay account management
   --version                print version
