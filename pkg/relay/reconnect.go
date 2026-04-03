@@ -181,6 +181,34 @@ func (p *PersistentConn) PushSessions(data []byte) error {
 
 func (p *PersistentConn) acceptLoop(conn *Conn) {
 	ctx := conn.Context()
+
+	// Watchdog: if the QUIC context hasn't been cancelled but we suspect
+	// the connection is dead (e.g. VPN/WiFi switch), proactively close.
+	// We periodically try to open a stream as a health check.
+	watchdog := time.NewTicker(30 * time.Second)
+	defer watchdog.Stop()
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-p.stop:
+				return
+			case <-watchdog.C:
+				hctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+				s, err := conn.OpenStream(hctx)
+				cancel()
+				if err != nil {
+					conn.Close()
+					return
+				}
+				// Send a no-op stream type (0xFF) and close immediately.
+				s.Write([]byte{0xFF})
+				s.Close()
+			}
+		}
+	}()
+
 	for {
 		raw, err := conn.AcceptRawStream(ctx)
 		if err != nil {
