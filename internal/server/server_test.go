@@ -18,7 +18,7 @@ func testServer(t *testing.T) (*Server, string) {
 	sock := filepath.Join(dir, "sock")
 	cfg := config.Default()
 	s := &Server{sockPath: sock, cfg: cfg, limiter: newConnLimiter(10), tracker: newConnTracker(), access: newAccessState(), connMeta: make(map[net.Conn]*ConnInfo)}
-	s.access.SetAPI(cfg.APIEnabled)
+	s.access.SetAPI(true) // tests need API enabled
 	if err := s.Listen(); err != nil {
 		t.Fatal(err)
 	}

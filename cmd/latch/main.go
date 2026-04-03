@@ -54,6 +54,8 @@ func main() {
 					i++
 					webAddr = args[i]
 				}
+			case "--api":
+				cfg.APIEnabled = true
 			}
 		}
 		serve(cfg, sshAddr, webAddr)
@@ -82,6 +84,8 @@ func main() {
 				}
 			case "--detached", "-d":
 				detached = true
+			case "--api":
+				cfg.APIEnabled = true
 			default:
 				name = args[i]
 			}

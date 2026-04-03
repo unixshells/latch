@@ -48,7 +48,7 @@ func Default() *Config {
 		RenderCoalesceMs: 2,
 		SSHAddr:          ":2222",
 		WebAddr:          ":7680",
-		APIEnabled:       true,
+		APIEnabled:       false,
 	}
 }
 
