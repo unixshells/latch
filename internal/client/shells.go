@@ -204,8 +204,19 @@ func ShellsRestart(cfgPath, nameOrID string) error {
 	return nil
 }
 
+// shellSSH builds an SSH command for connecting to a shell through the relay.
+func shellSSH(host string, noHostCheck bool, args ...string) *exec.Cmd {
+	sshArgs := []string{}
+	if noHostCheck {
+		sshArgs = append(sshArgs, "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null")
+	}
+	sshArgs = append(sshArgs, "-J", "relay.unixshells.com", "default@"+host)
+	sshArgs = append(sshArgs, args...)
+	return exec.Command("ssh", sshArgs...)
+}
+
 // ShellsSSH connects to a shell via SSH through the relay.
-func ShellsSSH(cfgPath, nameOrID string) error {
+func ShellsSSH(cfgPath, nameOrID string, noHostCheck bool) error {
 	shellID, cfg, err := resolveShellID(cfgPath, nameOrID)
 	if err != nil {
 		return err
@@ -214,9 +225,7 @@ func ShellsSSH(cfgPath, nameOrID string) error {
 	device := "shell-" + shellID
 	host := device + "." + cfg.RelayUser + ".unixshells.com"
 
-	cmd := exec.Command("ssh",
-		"-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
-		"-J", "relay.unixshells.com", "default@"+host)
+	cmd := shellSSH(host, noHostCheck)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -224,7 +233,7 @@ func ShellsSSH(cfgPath, nameOrID string) error {
 }
 
 // ShellsExec runs a command on a shell via SSH through the relay.
-func ShellsExec(cfgPath, nameOrID, command string) error {
+func ShellsExec(cfgPath, nameOrID, command string, noHostCheck bool) error {
 	shellID, cfg, err := resolveShellID(cfgPath, nameOrID)
 	if err != nil {
 		return err
@@ -233,9 +242,7 @@ func ShellsExec(cfgPath, nameOrID, command string) error {
 	device := "shell-" + shellID
 	host := device + "." + cfg.RelayUser + ".unixshells.com"
 
-	cmd := exec.Command("ssh",
-		"-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
-		"-J", "relay.unixshells.com", "default@"+host, command)
+	cmd := shellSSH(host, noHostCheck, command)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -243,7 +250,7 @@ func ShellsExec(cfgPath, nameOrID, command string) error {
 }
 
 // ShellsSend injects text into a session on a shell via SSH through the relay.
-func ShellsSend(cfgPath, nameOrID, text string) error {
+func ShellsSend(cfgPath, nameOrID, text string, noHostCheck bool) error {
 	shellID, cfg, err := resolveShellID(cfgPath, nameOrID)
 	if err != nil {
 		return err
@@ -252,16 +259,14 @@ func ShellsSend(cfgPath, nameOrID, text string) error {
 	device := "shell-" + shellID
 	host := device + "." + cfg.RelayUser + ".unixshells.com"
 
-	cmd := exec.Command("ssh",
-		"-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
-		"-J", "relay.unixshells.com", "default@"+host, "latch", "send", "default", text)
+	cmd := shellSSH(host, noHostCheck, "latch", "send", "default", text)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
 }
 
 // ShellsScreen reads the terminal screen from a shell via SSH through the relay.
-func ShellsScreen(cfgPath, nameOrID string) error {
+func ShellsScreen(cfgPath, nameOrID string, noHostCheck bool) error {
 	shellID, cfg, err := resolveShellID(cfgPath, nameOrID)
 	if err != nil {
 		return err
@@ -270,9 +275,7 @@ func ShellsScreen(cfgPath, nameOrID string) error {
 	device := "shell-" + shellID
 	host := device + "." + cfg.RelayUser + ".unixshells.com"
 
-	cmd := exec.Command("ssh",
-		"-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
-		"-J", "relay.unixshells.com", "default@"+host, "latch", "screen")
+	cmd := shellSSH(host, noHostCheck, "latch", "screen")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()

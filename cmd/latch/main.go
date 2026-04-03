@@ -279,31 +279,35 @@ func main() {
 				fatal("%v", err)
 			}
 		case "ssh":
-			if len(os.Args) < 4 {
-				fatal("usage: latch shells ssh <shell-id>")
+			args, nhc := shellArgs(4)
+			if len(args) < 1 {
+				fatal("usage: latch shells ssh [--no-host-check] <shell-id>")
 			}
-			if err := client.ShellsSSH(config.Path(), os.Args[3]); err != nil {
+			if err := client.ShellsSSH(config.Path(), args[0], nhc); err != nil {
 				fatal("%v", err)
 			}
 		case "exec":
-			if len(os.Args) < 5 {
-				fatal("usage: latch shells exec <shell-id> <command>")
+			args, nhc := shellArgs(4)
+			if len(args) < 2 {
+				fatal("usage: latch shells exec [--no-host-check] <shell-id> <command>")
 			}
-			if err := client.ShellsExec(config.Path(), os.Args[3], os.Args[4]); err != nil {
+			if err := client.ShellsExec(config.Path(), args[0], args[1], nhc); err != nil {
 				fatal("%v", err)
 			}
 		case "send":
-			if len(os.Args) < 5 {
-				fatal("usage: latch shells send <shell-id> <text>")
+			args, nhc := shellArgs(4)
+			if len(args) < 2 {
+				fatal("usage: latch shells send [--no-host-check] <shell-id> <text>")
 			}
-			if err := client.ShellsSend(config.Path(), os.Args[3], os.Args[4]); err != nil {
+			if err := client.ShellsSend(config.Path(), args[0], args[1], nhc); err != nil {
 				fatal("%v", err)
 			}
 		case "screen":
-			if len(os.Args) < 4 {
-				fatal("usage: latch shells screen <shell-id>")
+			args, nhc := shellArgs(4)
+			if len(args) < 1 {
+				fatal("usage: latch shells screen [--no-host-check] <shell-id>")
 			}
-			if err := client.ShellsScreen(config.Path(), os.Args[3]); err != nil {
+			if err := client.ShellsScreen(config.Path(), args[0], nhc); err != nil {
 				fatal("%v", err)
 			}
 		case "key":
@@ -340,6 +344,20 @@ func main() {
 	default:
 		usage()
 	}
+}
+
+// shellArgs extracts positional args and --no-host-check flag from os.Args[start:].
+func shellArgs(start int) ([]string, bool) {
+	var args []string
+	var noHostCheck bool
+	for _, a := range os.Args[start-1:] {
+		if a == "--no-host-check" {
+			noHostCheck = true
+		} else {
+			args = append(args, a)
+		}
+	}
+	return args, noHostCheck
 }
 
 func shellsUsage() {
