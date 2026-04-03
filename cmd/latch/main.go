@@ -152,6 +152,7 @@ func main() {
 			}
 			text = string(data)
 		} else {
+			text = strings.ReplaceAll(text, `\r`, "\r")
 			text = strings.ReplaceAll(text, `\n`, "\n")
 			text = strings.ReplaceAll(text, `\t`, "\t")
 		}
