@@ -261,12 +261,13 @@ func (p *Pane) PlainText() string {
 		line := make([]byte, 0, scr.W)
 		for col := 0; col < scr.W; col++ {
 			c := scr.Cells[off+col]
-			if c.Content != "" && c.Width > 0 {
+			switch {
+			case c.Content != "" && c.Width > 0:
 				line = append(line, c.Content...)
-			} else if c.Width <= 0 && col > 0 && scr.Cells[off+col-1].Width > 1 {
+			case c.Width <= 0 && col > 0 && scr.Cells[off+col-1].Width > 1:
 				// Skip continuation cell of wide character.
 				continue
-			} else {
+			default:
 				line = append(line, ' ')
 			}
 		}

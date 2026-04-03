@@ -315,7 +315,7 @@ func TestAPIAccessGating(t *testing.T) {
 
 	// Screen should also be blocked.
 	proto.Encode(conn, proto.MsgReadScreen, []byte("gatetest"))
-	typ, payload, err = proto.Decode(conn)
+	typ, _, err = proto.Decode(conn)
 	if err != nil {
 		t.Fatal(err)
 	}
