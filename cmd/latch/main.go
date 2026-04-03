@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 	"os/signal"
 	"syscall"
 	"time"
@@ -142,7 +143,9 @@ func main() {
 		if !server.Running() {
 			fatal("no server running")
 		}
-		if err := client.SendInput(server.SocketPath(), os.Args[2], os.Args[3]); err != nil {
+		text := strings.ReplaceAll(os.Args[3], `\n`, "\n")
+		text = strings.ReplaceAll(text, `\t`, "\t")
+		if err := client.SendInput(server.SocketPath(), os.Args[2], text); err != nil {
 			fatal("%v", err)
 		}
 
