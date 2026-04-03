@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"os/signal"
@@ -138,13 +139,22 @@ func main() {
 
 	case "send":
 		if len(os.Args) < 4 {
-			fatal("usage: latch send <session> <text>")
+			fatal("usage: latch send <session> <text|->")
 		}
 		if !server.Running() {
 			fatal("no server running")
 		}
-		text := strings.ReplaceAll(os.Args[3], `\n`, "\n")
-		text = strings.ReplaceAll(text, `\t`, "\t")
+		text := os.Args[3]
+		if text == "-" {
+			data, err := io.ReadAll(os.Stdin)
+			if err != nil {
+				fatal("read stdin: %v", err)
+			}
+			text = string(data)
+		} else {
+			text = strings.ReplaceAll(text, `\n`, "\n")
+			text = strings.ReplaceAll(text, `\t`, "\t")
+		}
 		if err := client.SendInput(server.SocketPath(), os.Args[2], text); err != nil {
 			fatal("%v", err)
 		}
