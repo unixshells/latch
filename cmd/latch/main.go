@@ -1,11 +1,12 @@
 package main
 
 import (
+	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
-	"strings"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -152,9 +153,7 @@ func main() {
 			}
 			text = string(data)
 		} else {
-			text = strings.ReplaceAll(text, `\r`, "\r")
-			text = strings.ReplaceAll(text, `\n`, "\n")
-			text = strings.ReplaceAll(text, `\t`, "\t")
+			text = unescapeSendText(text)
 		}
 		if err := client.SendInput(server.SocketPath(), os.Args[2], text); err != nil {
 			fatal("%v", err)
@@ -567,4 +566,38 @@ func serve(cfg *config.Config, sshAddr, webAddr string) {
 	if err := s.Serve(); err != nil {
 		fatal("serve: %v", err)
 	}
+}
+
+// unescapeSendText interprets escape sequences:
+// \r = CR, \n = LF, \t = tab, \xNN = hex byte (e.g. \x1b for ESC).
+func unescapeSendText(s string) string {
+	var b strings.Builder
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\\' && i+1 < len(s) {
+			switch s[i+1] {
+			case 'r':
+				b.WriteByte('\r')
+				i++
+				continue
+			case 'n':
+				b.WriteByte('\n')
+				i++
+				continue
+			case 't':
+				b.WriteByte('\t')
+				i++
+				continue
+			case 'x':
+				if i+3 < len(s) {
+					if h, err := hex.DecodeString(s[i+2 : i+4]); err == nil {
+						b.Write(h)
+						i += 3
+						continue
+					}
+				}
+			}
+		}
+		b.WriteByte(s[i])
+	}
+	return b.String()
 }
