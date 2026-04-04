@@ -1088,9 +1088,8 @@ func (s *Server) pushSessionsToRelay() {
 		return
 	}
 	go func() {
-		if err := s.relayCon.PushSessions(data); err != nil {
-			fmt.Fprintf(os.Stderr, "relay: push sessions failed: %v (sessions=%d)\n", err, len(list))
-		}
+		err := s.relayCon.PushSessions(data)
+		fmt.Fprintf(os.Stderr, "relay: push sessions=%d err=%v\n", len(list), err)
 	}()
 }
 
