@@ -1087,14 +1087,7 @@ func (s *Server) pushSessionsToRelay() {
 	if err != nil {
 		return
 	}
-	go func() {
-		for i := 0; i < 3; i++ {
-			if err := s.relayCon.PushSessions(data); err == nil {
-				return
-			}
-			time.Sleep(time.Duration(i+1) * 2 * time.Second)
-		}
-	}()
+	go s.relayCon.PushSessions(data)
 }
 
 // shutdownIfEmpty closes the listener if no sessions or clients remain,
