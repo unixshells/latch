@@ -46,6 +46,7 @@ func (s *Server) StartRelay(addr, user, device, caFile string) error {
 		s.handleUDPForwardStream(raw)
 	}
 	p.ConnectedFunc = func() {
+		fmt.Fprintf(os.Stderr, "relay: connected, pushing sessions\n")
 		s.pushSessionsToRelay()
 	}
 	s.relayCon = p

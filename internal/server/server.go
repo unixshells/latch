@@ -1088,11 +1088,8 @@ func (s *Server) pushSessionsToRelay() {
 		return
 	}
 	go func() {
-		for i := 0; i < 10; i++ {
-			if err := s.relayCon.PushSessions(data); err == nil {
-				return
-			}
-			time.Sleep(time.Second)
+		if err := s.relayCon.PushSessions(data); err != nil {
+			fmt.Fprintf(os.Stderr, "relay: push sessions failed: %v (sessions=%d)\n", err, len(list))
 		}
 	}()
 }
