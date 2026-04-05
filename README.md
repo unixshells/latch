@@ -8,6 +8,8 @@ standard SSH client. No VPN, no port forwarding, no client to install.
 The relay forwards encrypted SSH traffic — it never sees your session
 keys or terminal content.
 
+[![Watch the demo](demo.png)](https://www.youtube.com/watch?v=iWo9I2bjZkI)
+
 ## Install
 
 ```
