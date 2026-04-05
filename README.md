@@ -3,7 +3,18 @@
 Terminal multiplexer with built-in remote access. tmux you can SSH
 into, open in a browser, or connect to with mosh. One binary.
 
+SSH into your terminal sessions from anywhere with nothing but a
+standard SSH client. No VPN, no port forwarding, no client to install.
+The relay forwards encrypted SSH traffic — it never sees your session
+keys or terminal content.
+
 ## Install
+
+```
+curl -sSf https://unixshells.com/install.sh | sh
+```
+
+Or with Go:
 
 ```
 go install github.com/unixshells/latch/cmd/latch@latest
@@ -91,10 +102,24 @@ ssh -o User=work macbook               # connect to "work" session
 mosh --ssh="ssh -J relay.unixshells.com" default@macbook.alice.unixshells.com
 ```
 
+Add to `~/.ssh/config` (or run `latch relay ssh-config` to generate it):
+
+```
+Host macbook
+  HostName macbook.alice.unixshells.com
+  ProxyJump relay.unixshells.com
+  User default
+```
+
 Persistent QUIC connection to the relay. No public IP, port
 forwarding, or VPN needed. Mosh works through the relay too -- latch
 automatically bridges UDP through a QUIC tunnel so standard `mosh`
 clients connect without any extra setup.
+
+### Mobile
+
+iOS and Android app with SSH and mosh support. Connect to your latch
+sessions from your phone.
 
 ## Admin panel
 
@@ -139,7 +164,7 @@ datagrams bidirectionally.
 
 ## Requirements
 
-Go 1.22 or later. No runtime dependencies.
+Go 1.26 or later. No runtime dependencies.
 
 ## License
 
