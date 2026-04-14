@@ -46,7 +46,7 @@ func authedGet(url string) (*http.Response, error) {
 }
 
 // RelayRegister creates a new relay account: generates a key, calls the API,
-// and the server emails the payment link.
+// and registers the device. The relay is free for every account.
 func RelayRegister(configPath string) error {
 	keyPath := transport.RelayKeyPath()
 
@@ -148,7 +148,6 @@ func RelayRegister(configPath string) error {
 	fmt.Printf("device:  %s\n", device)
 	fmt.Printf("key:     %s\n", ssh.FingerprintSHA256(pub))
 	fmt.Println()
-	fmt.Println("check your email for the payment link.")
 	fmt.Println("run 'latch relay enable' to activate the relay connection.")
 	return nil
 }
@@ -695,7 +694,8 @@ func RelayRotateKey(configPath string) error {
 	return nil
 }
 
-// RelayCancel cancels the relay subscription.
+// RelayCancel cancels any paid subscription on the account (e.g. a shell
+// plan). The relay itself is free and has nothing to cancel.
 func RelayCancel(configPath string) error {
 	cfg, err := config.Load(configPath)
 	if err != nil {
@@ -706,7 +706,7 @@ func RelayCancel(configPath string) error {
 	}
 
 	reader := bufio.NewReader(os.Stdin)
-	fmt.Print("cancel your relay subscription? [y/N]: ")
+	fmt.Print("cancel your paid subscription? [y/N]: ")
 	confirm, _ := reader.ReadString('\n')
 	if strings.TrimSpace(strings.ToLower(confirm)) != "y" {
 		return fmt.Errorf("cancelled")

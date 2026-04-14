@@ -442,7 +442,7 @@ commands:
   disable      disable relay connection
   ssh-config   print SSH config snippet
   rotate-key   rotate the relay key for this device
-  cancel       cancel subscription
+  cancel       cancel paid subscription (shell plans; the relay is free)
   change-email change account email
   delete-account delete account
 
