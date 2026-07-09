@@ -264,120 +264,9 @@ func main() {
 			relayUsage()
 		}
 
-	case "shells":
-		if len(os.Args) < 3 {
-			shellsUsage()
-		}
-		switch os.Args[2] {
-		case "list", "ls":
-			if err := client.ShellsList(config.Path()); err != nil {
-				fatal("%v", err)
-			}
-		case "create":
-			if err := client.ShellsCreate(config.Path()); err != nil {
-				fatal("%v", err)
-			}
-		case "destroy":
-			if len(os.Args) < 4 {
-				fatal("usage: latch shells destroy <shell-id>")
-			}
-			if err := client.ShellsDestroy(config.Path(), os.Args[3]); err != nil {
-				fatal("%v", err)
-			}
-		case "restart":
-			if len(os.Args) < 4 {
-				fatal("usage: latch shells restart <shell-id>")
-			}
-			if err := client.ShellsRestart(config.Path(), os.Args[3]); err != nil {
-				fatal("%v", err)
-			}
-		case "ssh":
-			if len(os.Args) < 4 {
-				fatal("usage: latch shells ssh <shell-id>")
-			}
-			if err := client.ShellsSSH(config.Path(), os.Args[3]); err != nil {
-				fatal("%v", err)
-			}
-		case "exec":
-			if len(os.Args) < 5 {
-				fatal("usage: latch shells exec <shell-id> <command>")
-			}
-			if err := client.ShellsExec(config.Path(), os.Args[3], os.Args[4]); err != nil {
-				fatal("%v", err)
-			}
-		case "send":
-			if len(os.Args) < 5 {
-				fatal("usage: latch shells send <shell-id> <text>")
-			}
-			if err := client.ShellsSend(config.Path(), os.Args[3], os.Args[4]); err != nil {
-				fatal("%v", err)
-			}
-		case "screen":
-			if len(os.Args) < 4 {
-				fatal("usage: latch shells screen <shell-id>")
-			}
-			if err := client.ShellsScreen(config.Path(), os.Args[3]); err != nil {
-				fatal("%v", err)
-			}
-		case "key":
-			if len(os.Args) < 4 {
-				shellsKeyUsage()
-			}
-			switch os.Args[3] {
-			case "add":
-				if len(os.Args) < 5 {
-					fatal("usage: latch shells key add <shell-id> [key-file]")
-				}
-				shellID := os.Args[4]
-				keyFile := ""
-				if len(os.Args) > 5 {
-					keyFile = os.Args[5]
-				}
-				if err := client.ShellsKeyAdd(config.Path(), shellID, keyFile); err != nil {
-					fatal("%v", err)
-				}
-			case "list", "ls":
-				if len(os.Args) < 5 {
-					fatal("usage: latch shells key list <shell-id>")
-				}
-				if err := client.ShellsKeyList(config.Path(), os.Args[4]); err != nil {
-					fatal("%v", err)
-				}
-			default:
-				shellsKeyUsage()
-			}
-		default:
-			shellsUsage()
-		}
-
 	default:
 		usage()
 	}
-}
-
-func shellsUsage() {
-	fmt.Fprintln(os.Stderr, "usage: latch shells <command>")
-	fmt.Fprintln(os.Stderr, "")
-	fmt.Fprintln(os.Stderr, "commands:")
-	fmt.Fprintln(os.Stderr, "  list             list your shells")
-	fmt.Fprintln(os.Stderr, "  create           create a new shell")
-	fmt.Fprintln(os.Stderr, "  destroy <id>     destroy a shell (requires email verification)")
-	fmt.Fprintln(os.Stderr, "  restart <id>     restart a shell (requires email verification)")
-	fmt.Fprintln(os.Stderr, "  ssh <id>         connect to a shell via SSH")
-	fmt.Fprintln(os.Stderr, "  exec <id> <cmd>  run a command on a shell")
-	fmt.Fprintln(os.Stderr, "  send <id> <text> send input to a shell's session")
-	fmt.Fprintln(os.Stderr, "  screen <id>      read a shell's terminal screen")
-	fmt.Fprintln(os.Stderr, "  key <cmd>        manage SSH keys on a shell")
-	os.Exit(1)
-}
-
-func shellsKeyUsage() {
-	fmt.Fprintln(os.Stderr, "usage: latch shells key <command>")
-	fmt.Fprintln(os.Stderr, "")
-	fmt.Fprintln(os.Stderr, "commands:")
-	fmt.Fprintln(os.Stderr, "  add <id> [file]  add SSH key to shell (requires email verification)")
-	fmt.Fprintln(os.Stderr, "  list <id>        list SSH keys on a shell")
-	os.Exit(1)
 }
 
 func usage() {
@@ -442,7 +331,7 @@ commands:
   disable      disable relay connection
   ssh-config   print SSH config snippet
   rotate-key   rotate the relay key for this device
-  cancel       cancel paid subscription (shell plans; the relay is free)
+  cancel       cancel a paid subscription (if any)
   change-email change account email
   delete-account delete account
 
